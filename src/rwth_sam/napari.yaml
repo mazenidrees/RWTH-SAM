@@ -12,14 +12,8 @@ contributions:
       python_name: rwth_sam._writer:write_single_image
       title: Save image data with RWTH-SAM
     - id: RWTH-SAM.make_qwidget
-      python_name: rwth_sam._widget:ExampleQWidget
+      python_name: rwth_sam._widget:SAMWidget
       title: Make example QWidget
-    - id: RWTH-SAM.make_magic_widget
-      python_name: rwth_sam._widget:example_magic_widget
-      title: Make example magic widget
-    - id: RWTH-SAM.make_func_widget
-      python_name: rwth_sam._widget:example_function_widget
-      title: Make example function widget
   readers:
     - command: RWTH-SAM.get_reader
       accepts_directories: false
@@ -33,9 +27,5 @@ contributions:
       filename_extensions: ['.npy']
   widgets:
     - command: RWTH-SAM.make_qwidget
-      display_name: Example QWidget
-    - command: RWTH-SAM.make_magic_widget
-      display_name: Example Magic Widget
-    - command: RWTH-SAM.make_func_widget
-      autogenerate: true
-      display_name: Example Function Widget
+      display_name: RWTH-SAM Widget
+
