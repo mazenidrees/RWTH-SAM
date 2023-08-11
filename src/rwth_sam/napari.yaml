@@ -1,0 +1,41 @@
+name: RWTH-SAM
+display_name: RWTH-SAM
+contributions:
+  commands:
+    - id: RWTH-SAM.get_reader
+      python_name: rwth_sam._reader:napari_get_reader
+      title: Open data with RWTH-SAM
+    - id: RWTH-SAM.write_multiple
+      python_name: rwth_sam._writer:write_multiple
+      title: Save multi-layer data with RWTH-SAM
+    - id: RWTH-SAM.write_single_image
+      python_name: rwth_sam._writer:write_single_image
+      title: Save image data with RWTH-SAM
+    - id: RWTH-SAM.make_qwidget
+      python_name: rwth_sam._widget:ExampleQWidget
+      title: Make example QWidget
+    - id: RWTH-SAM.make_magic_widget
+      python_name: rwth_sam._widget:example_magic_widget
+      title: Make example magic widget
+    - id: RWTH-SAM.make_func_widget
+      python_name: rwth_sam._widget:example_function_widget
+      title: Make example function widget
+  readers:
+    - command: RWTH-SAM.get_reader
+      accepts_directories: false
+      filename_patterns: ['*.npy']
+  writers:
+    - command: RWTH-SAM.write_multiple
+      layer_types: ['image*','labels*']
+      filename_extensions: []
+    - command: RWTH-SAM.write_single_image
+      layer_types: ['image']
+      filename_extensions: ['.npy']
+  widgets:
+    - command: RWTH-SAM.make_qwidget
+      display_name: Example QWidget
+    - command: RWTH-SAM.make_magic_widget
+      display_name: Example Magic Widget
+    - command: RWTH-SAM.make_func_widget
+      autogenerate: true
+      display_name: Example Function Widget
