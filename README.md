@@ -1,4 +1,5 @@
 # RWTH-SAM
+A plugin for segmenting images using the Segment Anything model with focus on 3d CT-images of batteries
 
 [![License Apache Software License 2.0](https://img.shields.io/pypi/l/RWTH-SAM.svg?color=green)](https://github.com/mazenidrees/RWTH-SAM/raw/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/RWTH-SAM.svg?color=green)](https://pypi.org/project/RWTH-SAM)
