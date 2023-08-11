@@ -74,16 +74,15 @@ class ClassSelector(QListWidget):
     def __init__(self, viewer):
         super().__init__()
         self.viewer = viewer
-        self.update_layers()
+        self.update_classes()
         # connect a method to the itemSelectionChanged signal
         self.itemSelectionChanged.connect(self.item_selected)
 
-    def update_layers(self, number_of_classes=None):
-        # Remove all items
+    def update_classes(self, classes=None):
         self.clear()
-        if is_number(number_of_classes):
-            for i in range(int(number_of_classes)):
-                self.addItem(f"class {i+1}")
+        if classes:
+            for class_name in classes:
+                self.addItem(class_name)
 
         # Adjust the height of the QListWidget based on the content
         self.adjust_height()
@@ -119,10 +118,9 @@ class UiElements:
         self.cb_model_selctor = None
         self.btn_load_model = None
         self.cb_input_image_selctor = None
-        self.le_number_of_classes = None
         self.rb_click_mode = None
         self.rb_annotation_mode_automatic = None
-        self.cs_label_selector = None
+        self.cs_class_selector = None
         self.btn_activate = None
         self.btn_submit_to_class = None
 
@@ -149,10 +147,10 @@ class UiElements:
         self._init_model_selection()
         self._init_input_image_selection()
         self._init_output_label_selection()
-        self._init_number_of_classes()
+        self._init_segmentation_profile_selection()
         self._init_annotation_mode()
         self._init_activation_button()
-        self._init_label_layer_selection()
+        self._init_class_selection()
         self._init_submit_to_class_button()
         self._init_tooltip()
         self.init_auto_mode_settings()
@@ -185,12 +183,14 @@ class UiElements:
         self._update_layer_selection_combobox(self.cb_output_label_selctor, napari.layers.Labels)
         self.main_layout.addWidget(self.cb_output_label_selctor)
 
-    def _init_number_of_classes(self):
-        self.l_number_of_classes = QLabel("Enter number of classes:")
-        self.main_layout.addWidget(self.l_number_of_classes)
-        
-        self.le_number_of_classes = QLineEdit()
-        self.main_layout.addWidget(self.le_number_of_classes)
+    def _init_segmentation_profile_selection(self):
+        l_segmentation_profile = QLabel("Select segmentation profile:")
+        self.main_layout.addWidget(l_segmentation_profile)
+
+        self.cb_segmentation_profile_selctor = QComboBox()
+        self._update_layer_selection_combobox(self.cb_segmentation_profile_selctor, napari.layers.Points)
+        self.main_layout.addWidget(self.cb_segmentation_profile_selctor)
+
 
     def _init_annotation_mode(self):
         self.g_annotation = QGroupBox("Annotation mode")
@@ -218,13 +218,13 @@ class UiElements:
         self.g_annotation.setLayout(self.l_annotation)
         self.main_layout.addWidget(self.g_annotation)
 
-    def _init_label_layer_selection(self):
-        l_label_selector = QLabel("Select class:")
-        self.main_layout.addWidget(l_label_selector)
+    def _init_class_selection(self):
+        l_class_selector = QLabel("Select class:")
+        self.main_layout.addWidget(l_class_selector)
 
-        self.cs_label_selector = ClassSelector(self.viewer)  # No callback function
-        self.cs_label_selector.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        self.main_layout.addWidget(self.cs_label_selector)
+        self.cs_class_selector = ClassSelector(self.viewer)  # No callback function
+        self.cs_class_selector.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        self.main_layout.addWidget(self.cs_class_selector)
 
     def _init_activation_button(self):
         self.btn_activate = QPushButton("Activate")
@@ -418,7 +418,7 @@ class UiElements:
         
         self.viewer.layers.events.inserted.connect(self._update_UI) # TODO make spacial cases instead of updating everything
         self.viewer.layers.events.removed.connect(self._update_UI)
-        self.le_number_of_classes.textChanged.connect(self._update_UI)
+        #self.cb_segmentation_profile_selctor.currentTextChanged.connect(self._update_UI)
 
         #self.rb_click.clicked.connect(self.on_everything_mode_checked) # TODO: change UI elements to reflect the mode
         #self.rb_auto.clicked.connect(self.on_everything_mode_checked)  # TODO: change UI elements to reflect the mode
@@ -426,7 +426,9 @@ class UiElements:
     def _update_UI(self):
         self._update_layer_selection_combobox(self.cb_input_image_selctor, napari.layers.Image)
         self._update_layer_selection_combobox(self.cb_output_label_selctor, napari.layers.Labels)
-        self.cs_label_selector.update_layers(self.le_number_of_classes.text())
+        self._update_layer_selection_combobox(self.cb_segmentation_profile_selctor, napari.layers.Shapes)
+        self._update_class_selector()
+
         self._check_activate_btn()
   
 
@@ -437,7 +439,18 @@ class UiElements:
 
         for layer in self.viewer.layers:
             if isinstance(layer, layers_type):
+                if layers_type == napari.layers.Shapes and 'classes' not in layer.metadata: # spacial case for segmentation profile
+                    continue
                 layer_selection_combobox.addItem(layer.name)
+
+
+    def _update_class_selector(self):
+        if self.cb_segmentation_profile_selctor.currentText() != "":
+            selected_layer = self.viewer.layers[self.cb_segmentation_profile_selctor.currentText()]
+            self.cs_class_selector.update_classes(selected_layer.metadata['classes'])
+
+        else:
+                self.cs_class_selector.clear()
 
     def _update_model_selection_combobox_and_button(self):
         """Updates the model selection combobox and load model button based on the cached models."""
@@ -486,7 +499,7 @@ class UiElements:
             self.btn_load_model.setEnabled(False)
             self.cb_input_image_selctor.setEnabled(False)
             self.cb_output_label_selctor.setEnabled(False)
-            self.le_number_of_classes.setEnabled(False)
+            self.cb_segmentation_profile_selctor.setEnabled(False)
             self.btn_submit_to_class.setEnabled(True)
 
             if self.rb_annotation_mode_click.isChecked():
@@ -509,7 +522,7 @@ class UiElements:
             self.btn_load_model.setEnabled(True)
             self.cb_input_image_selctor.setEnabled(True)
             self.cb_output_label_selctor.setEnabled(True)
-            self.le_number_of_classes.setEnabled(True)
+            self.cb_segmentation_profile_selctor.setEnabled(True)
             
             self.rb_annotation_mode_click.setEnabled(True)
             self.rb_annotation_mode_click.setStyleSheet("")
@@ -522,14 +535,14 @@ class UiElements:
 
         self.btn_activate.setEnabled(True)
     def _internal_handler_btn_submit_to_class(self):
-        self.external_handler_btn_submit_to_class(self.cs_label_selector.currentRow()+1)
+        self.external_handler_btn_submit_to_class(self.cs_class_selector.currentRow()+1)
 
     def _check_activate_btn(self):
         if (
             self.loaded_model is not None and
             self.cb_input_image_selctor.currentText() != "" and
             self.cb_output_label_selctor.currentText() != "" and
-            is_number(self.le_number_of_classes.text())
+            self.cb_segmentation_profile_selctor.currentText() != ""
         ):
             self.btn_activate.setEnabled(True)
         else:

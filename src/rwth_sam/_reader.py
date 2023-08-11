@@ -1,6 +1,6 @@
 import json
 import numpy as np
-# TODO: check json structure before reading/returning data
+# TODO: check json structure before returning data
 def napari_get_reader(path):
     if not path.endswith(".json"):
         return None
@@ -27,6 +27,7 @@ def json_reader_function(path):
     # Create an empty Points layer data to hold the metadata
     data = np.empty((0, 2))  # Zero points in a 2D space
     add_kwargs = {"metadata": metadata}
-    layer_type = "points"
+    #layer_type = "points"
+    layer_type = "shapes"
 
     return [(data, add_kwargs, layer_type)]
