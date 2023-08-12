@@ -14,18 +14,19 @@ contributions:
     - id: RWTH-SAM.make_qwidget
       python_name: rwth_sam._widget:SAMWidget
       title: Make example QWidget
+    - id: RWTH-SAM.make_examplewidget
+      python_name: rwth_sam._widget:SegmentationProfileQWidget
+      title: Make Example QWidget
   readers:
     - command: RWTH-SAM.get_reader
       accepts_directories: false
       filename_patterns: ['*.json']
   writers:
-    - command: RWTH-SAM.write_multiple
-      layer_types: ['image*','labels*']
-      filename_extensions: []
     - command: RWTH-SAM.write_single_image
-      layer_types: ['image']
-      filename_extensions: ['.npy']
+      layer_types: ['shapes']
+      filename_extensions: ['.json']
   widgets:
     - command: RWTH-SAM.make_qwidget
       display_name: RWTH-SAM Widget
-
+    - command: RWTH-SAM.make_examplewidget
+      display_name: RWTH-SAM Segmentation Profile Widget

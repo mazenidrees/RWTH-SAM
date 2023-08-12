@@ -139,6 +139,7 @@ class UiElements:
 
         self._init_main_layout()
         self._init_UI_signals()
+        self._update_UI()
 
     ################################ UI elements ################################
 
@@ -418,7 +419,14 @@ class UiElements:
         
         self.viewer.layers.events.inserted.connect(self._update_UI) # TODO make spacial cases instead of updating everything
         self.viewer.layers.events.removed.connect(self._update_UI)
-        #self.cb_segmentation_profile_selctor.currentTextChanged.connect(self._update_UI)
+        
+        self.cb_input_image_selctor.currentTextChanged.connect(self._check_activate_btn)
+        self.cb_output_label_selctor.currentTextChanged.connect(self._check_activate_btn)
+        self.cb_segmentation_profile_selctor.currentTextChanged.connect(self._check_activate_btn)
+
+        self.cb_segmentation_profile_selctor.currentTextChanged.connect(self._update_class_selector)
+
+
 
         #self.rb_click.clicked.connect(self.on_everything_mode_checked) # TODO: change UI elements to reflect the mode
         #self.rb_auto.clicked.connect(self.on_everything_mode_checked)  # TODO: change UI elements to reflect the mode
@@ -427,6 +435,7 @@ class UiElements:
         self._update_layer_selection_combobox(self.cb_input_image_selctor, napari.layers.Image)
         self._update_layer_selection_combobox(self.cb_output_label_selctor, napari.layers.Labels)
         self._update_layer_selection_combobox(self.cb_segmentation_profile_selctor, napari.layers.Shapes)
+
         self._update_class_selector()
 
         self._check_activate_btn()
@@ -442,7 +451,7 @@ class UiElements:
                 if layers_type == napari.layers.Shapes and 'classes' not in layer.metadata: # spacial case for segmentation profile
                     continue
                 layer_selection_combobox.addItem(layer.name)
-
+                
 
     def _update_class_selector(self):
         if self.cb_segmentation_profile_selctor.currentText() != "":

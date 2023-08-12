@@ -1,27 +1,31 @@
 import copy
-import numpy as np
-
+import warnings
+from collections import Counter
 from enum import Enum
 from os.path import join
 from pathlib import Path
 import urllib.request
-import warnings
+
+import numpy as np
+import torch
 
 import napari
-import torch
-from tqdm import tqdm
-from vispy.util.keys import CONTROL
-
 from qtpy.QtWidgets import (
     QWidget,
     QApplication,
 )
-from collections import Counter
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QLabel, QLineEdit, QSpinBox, 
+    QPushButton, QMessageBox
+)
 from superqt.utils import qdebounced
+from tqdm import tqdm
+from vispy.util.keys import CONTROL
 
 from rwth_sam._ui_elements import UiElements, AnnotatorMode
 from rwth_sam.slicer import slicer
 from rwth_sam.utils import normalize
+
 from segment_anything import (
     SamPredictor,
     build_sam_vit_h,
@@ -43,6 +47,7 @@ from segment_anything_hq import (
     build_sam_vit_b as build_sam_vit_b_hq,
 )
 from segment_anything_hq.automatic_mask_generator import SamAutomaticMaskGenerator as SamAutomaticMaskGeneratorHQ
+
 
 class SegmentationMode(Enum):
     SEMANTIC = 0
@@ -587,4 +592,72 @@ class SAMWidget(QWidget):
         self.update_points_layer()
         self.update_label_layer(prediction, self.temp_class_id, x_coord)
 
+
+
+
+class SegmentationProfileQWidget(QWidget):
+    def __init__(self, napari_viewer):
+        super().__init__()
+        self.viewer = napari_viewer
+        self.class_names = []
+
+        layout = QVBoxLayout()
+
+        
+        layout.addWidget(QLabel("segmanation profile:"))
+        # Layer name input
+        self.layer_name_edit = QLineEdit()
+        self.layer_name_edit.setPlaceholderText("Segmanation Profile Name")
+        layout.addWidget(self.layer_name_edit)
+
+        # Class count input
+        self.class_count_spinbox = QSpinBox()
+        self.class_count_spinbox.setValue(4)
+        self.class_count_spinbox.setMinimum(1)
+        layout.addWidget(QLabel("Number of classes:"))
+        layout.addWidget(self.class_count_spinbox)
+        self.class_count_spinbox.valueChanged.connect(self._update_class_fields)
+
+        # Dynamic class name fields
+        self.class_inputs_layout = QVBoxLayout()
+        layout.addLayout(self.class_inputs_layout)
+        self._update_class_fields()
+
+        # Save button
+        save_btn = QPushButton("Save Profile")
+        save_btn.clicked.connect(self._save_profile)
+        layout.addWidget(save_btn)
+
+        self.setLayout(layout)
+
+    def _update_class_fields(self):
+        count = self.class_count_spinbox.value()
+        while self.class_inputs_layout.count():
+            widget = self.class_inputs_layout.takeAt(0).widget()
+            widget.deleteLater()
+
+        self.class_name_edits = []
+        for i in range(1, count + 1):
+            edit = QLineEdit(self)
+            edit.setPlaceholderText(f"Class {i} Name")
+            self.class_inputs_layout.addWidget(edit)
+            self.class_name_edits.append(edit)
+
+    def _save_profile(self):
+        layer_name = self.layer_name_edit.text()
+        self.class_names = [edit.text().strip() for edit in self.class_name_edits]
+
+        # Check if any field is empty
+        if not layer_name or any(not class_name for class_name in self.class_names):
+            QMessageBox.warning(self, "Input Error", "Please fill all the fields before saving.")
+            return
+
+        profile = {
+            "classes": self.class_names
+        }
+
+        # Add a new shapes layer in Napari
+        if self.viewer is not None:
+            data = np.empty((0, 2))
+            self.viewer.add_shapes(data, name=layer_name, metadata=profile)
 
