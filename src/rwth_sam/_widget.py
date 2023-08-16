@@ -177,21 +177,14 @@ class SAMWidget(QWidget):
     ################################ activating sam ################################
     def activate(self, annotator_mode):
         self.set_layers()
-        print(f"self.image_layer.data.shape: {self.image_layer.data.shape}") # TODO: DEBUG
-        print(self.image_layer.data.shape[-2:])
-        # TODO: a better way to set point size
-        if self.image_layer.ndim == 2:
-            self.point_size = max(int(np.min(self.image_layer.data.shape[:2]) / 100), 1)
-        else:
-            self.point_size = max(int(np.min(self.image_layer.data.shape[-2:]) / 100), 1)
-        
-
-
+        self.set_point_size()
         self.adjust_image_layer_shape()
         self.check_image_dimension()
         self.set_sam_logits()
+
         self.points_layer = None
         self.submit_to_class(1) # init
+        
         if annotator_mode == AnnotatorMode.AUTO:
             self.activate_annotation_mode_auto()
 
@@ -205,6 +198,12 @@ class SAMWidget(QWidget):
         self.label_layer = self.viewer.layers[self.ui_elements.cb_output_label_selctor.currentText()]
         # TODO: maybe use for history
         # self.label_layer_changes = None
+
+    def set_point_size(self):
+        if self.image_layer.ndim == 2:
+            self.point_size = max(int(np.min(self.image_layer.data.shape[:2]) / 100), 1) # 2D Shape is (Height, Width, Channels)
+        else:
+            self.point_size = max(int(np.min(self.image_layer.data.shape[-2:]) / 100), 1) # 3D Shape is (Layers, Height, Width)
 
     def adjust_image_layer_shape(self):
         if self.image_layer.ndim == 3:
