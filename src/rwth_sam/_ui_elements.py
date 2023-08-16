@@ -228,14 +228,14 @@ class UiElements:
         self.main_layout.addWidget(self.cs_class_selector)
 
     def _init_activation_button(self):
+        # Callback function is defined externally through a setter function below
         self.btn_activate = QPushButton("Activate")
-        #self.btn_activate.clicked.connect(self._activate) #### TODO: Callback function is defined externally through a setter function below
         self.btn_activate.setEnabled(False)
         self.main_layout.addWidget(self.btn_activate)
 
     def _init_submit_to_class_button(self):
+        # Callback function is defined externally through a setter function below
         self.btn_submit_to_class = QPushButton("submit to class")
-        #self.btn_activate.clicked.connect(self._activate) #### TODO: Callback function is defined externally through a setter function below
         self.btn_submit_to_class.setEnabled(False)
         self.main_layout.addWidget(self.btn_submit_to_class)
 
@@ -426,10 +426,8 @@ class UiElements:
 
         self.cb_segmentation_profile_selctor.currentTextChanged.connect(self._update_class_selector)
 
-
-
-        self.rb_annotation_mode_click.clicked.connect(self._update_tooltip) # TODO: change UI elements to reflect the mode
-        self.rb_annotation_mode_automatic.clicked.connect(self._update_tooltip)  # TODO: change UI elements to reflect the mode
+        self.rb_annotation_mode_click.clicked.connect(self._update_tooltip)
+        self.rb_annotation_mode_automatic.clicked.connect(self._update_tooltip)
 
     def _update_UI(self):
         self._update_layer_selection_combobox(self.cb_input_image_selctor, napari.layers.Image)
