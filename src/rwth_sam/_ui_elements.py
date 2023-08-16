@@ -277,10 +277,10 @@ class UiElements:
         self.g_info_click.setLayout(self.l_info_click)
         container_layout_info.addWidget(self.g_info_click)
 
-        scroll_area_info = QScrollArea()
-        scroll_area_info.setWidget(container_widget_info)
-        scroll_area_info.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.main_layout.addWidget(scroll_area_info)
+        self.scroll_area_click = QScrollArea()
+        self.scroll_area_click.setWidget(container_widget_info)
+        self.scroll_area_click.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.main_layout.addWidget(self.scroll_area_click)
 
     def init_auto_mode_settings(self):
         container_widget_auto = QWidget()
@@ -400,15 +400,15 @@ class UiElements:
         # main_layout.addWidget(self.g_auto_mode_settings)
         container_layout_auto.addWidget(self.g_auto_mode_settings)
 
-        scroll_area_auto = QScrollArea()
+        self.scroll_area_auto = QScrollArea()
         # scroll_area_info.setWidgetResizable(True)
-        scroll_area_auto.setWidget(container_widget_auto)
+        self.scroll_area_auto.setWidget(container_widget_auto)
         # Set the scrollbar policies for the scroll area
-        scroll_area_auto.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area_auto.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         # scroll_area_info.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        scroll_area_auto.hide()
+        self.scroll_area_auto.hide()
 
-        self.main_layout.addWidget(scroll_area_auto)
+        self.main_layout.addWidget(self.scroll_area_auto)
    
     def _init_UI_signals(self):
         """ connecting signals for pure UI elements interactions """
@@ -428,8 +428,8 @@ class UiElements:
 
 
 
-        #self.rb_click.clicked.connect(self.on_everything_mode_checked) # TODO: change UI elements to reflect the mode
-        #self.rb_auto.clicked.connect(self.on_everything_mode_checked)  # TODO: change UI elements to reflect the mode
+        self.rb_annotation_mode_click.clicked.connect(self._update_tooltip) # TODO: change UI elements to reflect the mode
+        self.rb_annotation_mode_automatic.clicked.connect(self._update_tooltip)  # TODO: change UI elements to reflect the mode
 
     def _update_UI(self):
         self._update_layer_selection_combobox(self.cb_input_image_selctor, napari.layers.Image)
@@ -452,7 +452,6 @@ class UiElements:
                     continue
                 layer_selection_combobox.addItem(layer.name)
                 
-
     def _update_class_selector(self):
         if self.cb_segmentation_profile_selctor.currentText() != "":
             selected_layer = self.viewer.layers[self.cb_segmentation_profile_selctor.currentText()]
@@ -557,6 +556,15 @@ class UiElements:
         else:
             self.btn_activate.setEnabled(False)
 
+    def _update_tooltip(self):
+        if self.rb_annotation_mode_click.isChecked():
+            self.scroll_area_click.show()
+        else:
+            self.scroll_area_click.hide()
+        if self.rb_annotation_mode_automatic.isChecked():
+            self.scroll_area_auto.show()
+        else:
+            self.scroll_area_auto.hide()
     ################################ set external signals ################################
 
     def set_external_handler_btn_load_model(self, handler):
