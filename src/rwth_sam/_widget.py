@@ -69,7 +69,7 @@ SAM_MODELS = {
     "MedSAM": {"filename": "sam_vit_b_01ec64_medsam.pth", "url": "https://syncandshare.desy.de/index.php/s/yLfdFbpfEGSHJWY/download/medsam_20230423_vit_b_0.0.1.pth", "model": build_sam_vit_b, "predctor": SamPredictor, "automatic_mask_generator": SamAutomaticMaskGenerator},
     "MobileSAM" : {"filename": "mobile_sam.pt", "url": "https://github.com/ChaoningZhang/MobileSAM/blob/master/weights/mobile_sam.pt?raw=true", "model": build_sam_vit_t, "predctor": SamPredictorMobile, "automatic_mask_generator": SamAutomaticMaskGeneratorMobile}
 }
-
+# BUG: when switching images from 3D to 2D an error is thrown
 
 
 class SAMWidget(QWidget):
@@ -184,7 +184,7 @@ class SAMWidget(QWidget):
 
         self.points_layer = None
         self.submit_to_class(1) # init
-        
+
         if annotator_mode == AnnotatorMode.AUTO:
             self.activate_annotation_mode_auto()
 
@@ -196,7 +196,7 @@ class SAMWidget(QWidget):
         self.image_name = self.ui_elements.cb_input_image_selctor.currentText()
         self.image_layer = self.viewer.layers[self.ui_elements.cb_input_image_selctor.currentText()]
         self.label_layer = self.viewer.layers[self.ui_elements.cb_output_label_selctor.currentText()]
-        # TODO: maybe use for history
+        # TODO: History
         # self.label_layer_changes = None
 
     def set_point_size(self):
@@ -333,7 +333,7 @@ class SAMWidget(QWidget):
             #TODO: add again
             #self.create_label_color_mapping() 
 
-            # TODO: add again when done with history
+            # TODO: History
             """ 
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -347,7 +347,7 @@ class SAMWidget(QWidget):
             self.set_image()
 
             self.viewer.keymap['Delete'] = self.on_delete
-            # TODO: add again
+            # TODO: History: keymap
             """ 
             
             self.label_layer.keymap['Control-Z'] = self.on_undo
@@ -452,7 +452,7 @@ class SAMWidget(QWidget):
             points = np.flip(points, axis=-1)
             labels = np.array(labels)
 
-            # TODO: maybe use later
+            # TODO: check prev mask
             """ 
             logits = self.sam_logits
             if not self.check_prev_mask.isChecked():
@@ -490,7 +490,7 @@ class SAMWidget(QWidget):
 
             self.sam_predictor.features = self.sam_features[x_coord]
 
-            # TODO: maybe use later
+            # TODO: use when check_prev_mask is implemented
             #logits = self.sam_logits[x_coord] if not self.check_prev_mask.isChecked() else None
 
             logits = None
