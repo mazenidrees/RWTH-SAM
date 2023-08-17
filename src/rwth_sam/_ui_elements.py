@@ -192,7 +192,6 @@ class UiElements:
         self._update_layer_selection_combobox(self.cb_segmentation_profile_selctor, napari.layers.Points)
         self.main_layout.addWidget(self.cb_segmentation_profile_selctor)
 
-
     def _init_annotation_mode(self):
         self.g_annotation = QGroupBox("Annotation mode")
         self.l_annotation = QVBoxLayout()
@@ -540,6 +539,7 @@ class UiElements:
             self.btn_activate.setText("Activate")
 
         self.btn_activate.setEnabled(True)
+
     def _internal_handler_btn_submit_to_class(self):
         self.external_handler_btn_submit_to_class(self.cs_class_selector.currentRow()+1)
 
@@ -563,6 +563,8 @@ class UiElements:
             self.scroll_area_auto.show()
         else:
             self.scroll_area_auto.hide()
+
+
     ################################ set external signals ################################
 
     def set_external_handler_btn_load_model(self, handler):
@@ -574,6 +576,8 @@ class UiElements:
 
     def set_external_handler_btn_submit_to_class(self, handler):
         self.external_handler_btn_submit_to_class = handler
+
+
     ################################ externally activated UI elements ################################
 
     def create_progress_bar(self, max_value, text):
@@ -591,6 +595,7 @@ class UiElements:
     def delete_progress_bar(self):
         self.progress_bar.deleteLater()
         self.l_creating_features.deleteLater()
+
 
     ################################ utilities ################################
 
@@ -617,12 +622,3 @@ def get_cached_models(SAM_MODELS: dict, loaded_model: str) -> tuple:
         else:
             entries.append(f"{name} (Auto-Download)")
     return cached_models, entries
-
-def is_number(input_string):
-    try:
-        int(input_string)
-        return True
-    except ValueError:
-        return False
-    except TypeError:
-        return False

@@ -1,4 +1,5 @@
 import copy
+import inspect
 import warnings
 from collections import Counter
 from enum import Enum
@@ -8,7 +9,7 @@ import urllib.request
 
 import numpy as np
 import torch
-
+from pympler import asizeof # FIXME: remove for release
 import napari
 from qtpy.QtWidgets import (
     QWidget,
@@ -125,6 +126,7 @@ class SAMWidget(QWidget):
         else:
             device = "cuda"
             torch.cuda.empty_cache()
+        device = "cpu" #FIXME: Remove #DEBUG 
         self.sam_model = SAM_MODELS[model_type]["model"](self.get_weights_path(model_type))
 
         self.sam_model.to(device)
@@ -178,12 +180,12 @@ class SAMWidget(QWidget):
     def activate(self, annotator_mode):
         self.set_layers()
         self.set_point_size()
-        self.adjust_image_layer_shape()
         self.check_image_dimension()
+        self.adjust_image_layer_shape()
         self.set_sam_logits()
 
         self.points_layer = None
-        self.submit_to_class(1) # init
+        self.submit_to_class(self.temp_class_id) # init
 
         if annotator_mode == AnnotatorMode.AUTO:
             self.activate_annotation_mode_auto()
@@ -196,6 +198,13 @@ class SAMWidget(QWidget):
         self.image_name = self.ui_elements.cb_input_image_selctor.currentText()
         self.image_layer = self.viewer.layers[self.ui_elements.cb_input_image_selctor.currentText()]
         self.label_layer = self.viewer.layers[self.ui_elements.cb_output_label_selctor.currentText()]
+        
+        
+        #FIXME: remove for release
+        size_image_layer = asizeof.asizeof(self.image_layer)
+        size_label_layer = asizeof.asizeof(self.label_layer)
+        print(f"Memory usage of image_layer: {size_image_layer} bytes") 
+        print(f"Memory usage of label_layer: {size_label_layer} bytes")
         # TODO: History
         # self.label_layer_changes = None
 
@@ -204,6 +213,18 @@ class SAMWidget(QWidget):
             self.point_size = max(int(np.min(self.image_layer.data.shape[:2]) / 100), 1) # 2D Shape is (Height, Width, Channels)
         else:
             self.point_size = max(int(np.min(self.image_layer.data.shape[-2:]) / 100), 1) # 3D Shape is (Layers, Height, Width)
+
+    def check_image_dimension(self):
+        if self.image_layer.ndim != 2 and self.image_layer.ndim != 3:
+            raise RuntimeError("Only 2D and 3D images are supported.")
+        if self.image_layer.ndim != self.label_layer.ndim:
+            self.ui_elements._internal_handler_btn_activate()
+            raise RuntimeError("Image and label layer must have the same dimensionality. Please choose another image or label layer.")
+        if self.image_layer.data.shape != self.label_layer.data.shape:
+            self.ui_elements._internal_handler_btn_activate()
+            raise RuntimeError("Image and label layer must have the same shape. Please choose another image or label layer.")
+        print(f"Image layer shape: {self.image_layer.data.shape}")
+        print(f"Label layer shape: {self.label_layer.data.shape}")
 
     def adjust_image_layer_shape(self):
         if self.image_layer.ndim == 3:
@@ -224,10 +245,6 @@ class SAMWidget(QWidget):
             self.viewer.dims.set_point(0, 0)
             self.viewer.dims.set_point(0, pos[0])
             self.viewer.reset_view()
-
-    def check_image_dimension(self):
-        if self.image_layer.ndim != 2 and self.image_layer.ndim != 3:
-            raise RuntimeError("Only 2D and 3D images are supported.")
 
     def set_sam_logits(self):
         if self.image_layer.ndim == 2:
@@ -311,7 +328,8 @@ class SAMWidget(QWidget):
                 prediction[i+1] = new_next_slice
         return prediction
     
-    """ chatgpt created # TODO: control correctness
+    # TODO: control correctness
+    """ chatgpt created 
     def merge_classes_over_slices(self, prediction, threshold=0.5):
         for i in range(prediction.shape[0] - 1):
             current_slice, next_slice = prediction[i], prediction[i+1]
@@ -560,16 +578,31 @@ class SAMWidget(QWidget):
         self.temp_label_layer = np.copy(label_layer)
 
     def deactivate(self):
-        # 1. Remove event listeners
-        if hasattr(self, 'callback_click'):
-            if self.callback_click in self.viewer.mouse_drag_callbacks:
-                self.viewer.mouse_drag_callbacks.remove(self.callback_click)
+        self.remove_all_widget_callbacks(self.viewer)
+        if self.label_layer is not None:
+            self.remove_all_widget_callbacks(self.label_layer)
+        if self.points_layer is not None and self.points_layer in self.viewer.layers:
+            self.viewer.layers.remove(self.points_layer)
 
         self.image_layer.events.contrast_limits.disconnect(self.debounced_on_contrast_limits_change)
 
-        # 2. Remove added layers
-        if hasattr(self, 'points_layer') and self.points_layer in self.viewer.layers:
-            self.viewer.layers.remove(self.points_layer)
+
+
+    def remove_all_widget_callbacks(self, layer):
+        callback_types = ['mouse_double_click_callbacks', 'mouse_drag_callbacks', 'mouse_move_callbacks',
+                          'mouse_wheel_callbacks', 'keymap']
+        for callback_type in callback_types:
+            callbacks = getattr(layer, callback_type)
+            if isinstance(callbacks, list):
+                for callback in callbacks:
+                    if inspect.ismethod(callback) and callback.__self__ == self:
+                        callbacks.remove(callback)
+            elif isinstance(callbacks, dict):
+                for key in list(callbacks.keys()):
+                    if inspect.ismethod(callbacks[key]) and callbacks[key].__self__ == self:
+                        del callbacks[key]
+            else:
+                raise RuntimeError("Could not determine callbacks type.")
 
     def on_delete(self, layer):
         selected_point = list(self.points_layer.selected_data)[0]
