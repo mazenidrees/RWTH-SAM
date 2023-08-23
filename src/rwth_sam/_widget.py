@@ -215,16 +215,29 @@ class SAMWidget(QWidget):
             self.point_size = max(int(np.min(self.image_layer.data.shape[-2:]) / 100), 1) # 3D Shape is (Layers, Height, Width)
 
     def check_image_dimension(self):
-        if self.image_layer.ndim != 2 and self.image_layer.ndim != 3:
+        if self.image_layer.ndim not in [2, 3]:
             raise RuntimeError("Only 2D and 3D images are supported.")
+        
         if self.image_layer.ndim != self.label_layer.ndim:
             self.ui_elements._internal_handler_btn_activate()
-            raise RuntimeError("Image and label layer must have the same dimensionality. Please choose another image or label layer.")
-        if self.image_layer.data.shape != self.label_layer.data.shape:
-            self.ui_elements._internal_handler_btn_activate()
-            raise RuntimeError("Image and label layer must have the same shape. Please choose another image or label layer.")
-        print(f"Image layer shape: {self.image_layer.data.shape}")
-        print(f"Label layer shape: {self.label_layer.data.shape}")
+            raise RuntimeError("Image and label layer must have the same number of dimensions. Please choose another image or label layer.")
+
+        if self.image_layer.ndim == 2:
+            if self.image_layer.data.shape[:2] != self.label_layer.data.shape:
+                self.ui_elements._internal_handler_btn_activate()
+                raise RuntimeError("Image and label layer must have the same shape. Please choose another image or label layer.")
+            
+        elif self.image_layer.ndim == 3:
+            if len(self.image_layer.data.shape) == 4:
+                self.ui_elements._internal_handler_btn_activate()
+                raise RuntimeError("Multichannel 3D images are not supported. Please choose another image layer.")
+            
+            if self.image_layer.data.shape != self.label_layer.data.shape:
+                self.ui_elements._internal_handler_btn_activate()
+                raise RuntimeError("Image and label layer must have the same shape. Please choose another image or label layer.")
+
+
+
 
     def adjust_image_layer_shape(self):
         if self.image_layer.ndim == 3:
@@ -365,6 +378,7 @@ class SAMWidget(QWidget):
             self.set_image()
 
             self.viewer.keymap['Delete'] = self.on_delete
+            self.viewer.keymap['Control-K'] = self.on_delete_all
             # TODO: History: keymap
             """ 
             
@@ -457,14 +471,19 @@ class SAMWidget(QWidget):
 
         x_coord = coords[0]
         
-        prediction = self.predict_sam(points=copy.deepcopy(self.points), 
-                                    labels=copy.deepcopy(self.points_labels), 
-                                    x_coord=copy.deepcopy(x_coord))
+        prediction = self.predict_sam(points=self.points, 
+                                    labels=self.points_labels, 
+                                    x_coord=x_coord)
 
         self.update_points_layer()
         self.update_label_layer(prediction, self.temp_class_id, x_coord)
 
     def predict_sam(self, points, labels, x_coord=None):
+        points = copy.deepcopy(points)
+        labels = copy.deepcopy(labels)
+        x_coord = copy.deepcopy(x_coord)
+
+
         if self.image_layer.ndim == 2:
             points = np.array(points)
             points = np.flip(points, axis=-1)
@@ -530,6 +549,8 @@ class SAMWidget(QWidget):
     def update_points_layer(self):
         selected_layer = None
         color_list = ["red" if i==0 else "blue" for i in self.points_labels]
+        print(f"points_labels: {self.points_labels}")
+        print(f"color_list: {color_list}")
         #save selected layer
         if self.viewer.layers.selection.active != self.points_layer:
             selected_layer = self.viewer.layers.selection.active
@@ -547,20 +568,31 @@ class SAMWidget(QWidget):
         if selected_layer is not None:
             self.viewer.layers.selection.active = selected_layer
 
-    def update_label_layer(self,prediction, point_label, x_coord): # TODO: add 3D support
+    def update_label_layer(self,prediction, point_label, x_coord):
 
         # x_coord selects everything
         if self.image_layer.ndim == 2:
             x_coord = slice(None, None)
 
         label_layer = np.asarray(self.label_layer.data)
-        print(label_layer.shape, prediction.shape, x_coord)
-        # Reset label_layer for the current class
-        label_layer[x_coord][label_layer[x_coord] == point_label] = 0
         
-        label_layer[x_coord][prediction[x_coord] == 1] = point_label
-        label_layer[x_coord][prediction[x_coord] != 1] = self.temp_label_layer[x_coord][prediction[x_coord] != 1]
+        # Create masks for better readability
+        is_current_class = label_layer[x_coord] == point_label
+        indecies_prediction_true = prediction[x_coord] == 1
+        indecies_prediction_false = ~indecies_prediction_true
 
+        print(f"shape of is_current_class: {is_current_class.shape}")
+        print(f"shape of indecies_prediction_true: {indecies_prediction_true.shape}")
+        print(f"shape of indecies_prediction_false: {indecies_prediction_false.shape}")
+        print(f"shape of label_layer[x_coord]: {label_layer[x_coord].shape}")
+        # Reset label_layer for the current class
+        label_layer[x_coord][is_current_class] = 0
+
+        # Update the label layer for the current class
+        label_layer[x_coord][indecies_prediction_true] = point_label
+        label_layer[x_coord][indecies_prediction_false] = self.temp_label_layer[x_coord][indecies_prediction_false]
+
+        # Update the label layer data
         self.label_layer.data = label_layer
 
     def submit_to_class(self, class_id):
@@ -586,8 +618,6 @@ class SAMWidget(QWidget):
 
         self.image_layer.events.contrast_limits.disconnect(self.debounced_on_contrast_limits_change)
 
-
-
     def remove_all_widget_callbacks(self, layer):
         callback_types = ['mouse_double_click_callbacks', 'mouse_drag_callbacks', 'mouse_move_callbacks',
                           'mouse_wheel_callbacks', 'keymap']
@@ -603,8 +633,11 @@ class SAMWidget(QWidget):
                         del callbacks[key]
             else:
                 raise RuntimeError("Could not determine callbacks type.")
-
+    
     def on_delete(self, layer):
+        if self.points_layer is None or len(self.points_layer.selected_data) == 0:
+            raise RuntimeError("No point selected.")
+
         selected_point = list(self.points_layer.selected_data)[0]
         print(selected_point)
         print(type(selected_point))
@@ -614,16 +647,43 @@ class SAMWidget(QWidget):
         
         self.points.pop(selected_point)
         self.points_labels.pop(selected_point)
-        if len(self.points) != 0:
-            prediction = self.predict_sam(points=copy.deepcopy(self.points), 
-                                        labels=copy.deepcopy(self.points_labels), 
-                                        x_coord=copy.deepcopy(x_coord))
-        else:
+        
+        if len(self.points) == 0:
             prediction = np.zeros_like(self.label_layer.data)
 
+        elif self.image_layer.ndim == 3:
+            points = copy.deepcopy(self.points)
+            points = np.array(points)
+            x_coords = np.unique(points[:, 0])
+            groups = {x_coord: list(points[points[:, 0] == x_coord]) for x_coord in x_coords}
+
+        if len(self.points) > 0:
+            # are there points in the current slice left?
+            if self.image_layer.ndim == 3 and x_coord not in groups.keys():
+                prediction = np.zeros_like(self.label_layer.data)
+
+            else:
+                prediction = self.predict_sam(points=self.points, 
+                                            labels=self.points_labels, 
+                                            x_coord=x_coord)
+    
         self.update_points_layer()
         self.update_label_layer(prediction, self.temp_class_id, x_coord)
+    
+    def on_delete_all(self, layer):
+        x_coord = None
+        prediction = np.zeros_like(self.label_layer.data)
 
+        if self.image_layer.ndim == 2:
+            self.update_label_layer(prediction, self.temp_class_id, x_coord)
+        else:
+            x_coords = [point[0] for point in self.points]
+            for x_coord in x_coords:
+                self.update_label_layer(prediction, self.temp_class_id, x_coord) 
+
+        self.points.clear()
+        self.points_labels.clear()
+        self.update_points_layer()
 
 
 
@@ -684,6 +744,11 @@ class SegmentationProfileQWidget(QWidget):
             QMessageBox.warning(self, "Input Error", "Please fill all the fields before saving.")
             return
 
+        # Check if class names are unique
+        if len(self.class_names) != len(set(self.class_names)):
+            QMessageBox.warning(self, "Input Error", "Class names must be unique. Please correct before saving.")
+            return
+
         profile = {
             "classes": self.class_names
         }
@@ -692,4 +757,3 @@ class SegmentationProfileQWidget(QWidget):
         if self.viewer is not None:
             data = np.empty((0, 2))
             self.viewer.add_shapes(data, name=layer_name, metadata=profile)
-
