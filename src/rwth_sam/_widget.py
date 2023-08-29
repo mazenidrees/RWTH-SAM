@@ -471,9 +471,7 @@ class SAMWidget(QWidget):
 
         x_coord = coords[0]
         
-        prediction = self.predict_sam(points=self.points, 
-                                    labels=self.points_labels, 
-                                    x_coord=x_coord)
+        prediction = self.predict_sam(points=self.points, labels=self.points_labels, x_coord=x_coord)
 
         self.update_points_layer()
         self.update_label_layer(prediction, self.temp_class_id, x_coord)
@@ -549,8 +547,6 @@ class SAMWidget(QWidget):
     def update_points_layer(self):
         selected_layer = None
         color_list = ["red" if i==0 else "blue" for i in self.points_labels]
-        print(f"points_labels: {self.points_labels}")
-        print(f"color_list: {color_list}")
         #save selected layer
         if self.viewer.layers.selection.active != self.points_layer:
             selected_layer = self.viewer.layers.selection.active
@@ -581,10 +577,6 @@ class SAMWidget(QWidget):
         indecies_prediction_true = prediction[x_coord] == 1
         indecies_prediction_false = ~indecies_prediction_true
 
-        print(f"shape of is_current_class: {is_current_class.shape}")
-        print(f"shape of indecies_prediction_true: {indecies_prediction_true.shape}")
-        print(f"shape of indecies_prediction_false: {indecies_prediction_false.shape}")
-        print(f"shape of label_layer[x_coord]: {label_layer[x_coord].shape}")
         # Reset label_layer for the current class
         label_layer[x_coord][is_current_class] = 0
 
@@ -663,13 +655,11 @@ class SAMWidget(QWidget):
                 prediction = np.zeros_like(self.label_layer.data)
 
             else:
-                prediction = self.predict_sam(points=self.points, 
-                                            labels=self.points_labels, 
-                                            x_coord=x_coord)
+                prediction = self.predict_sam(points=self.points, labels=self.points_labels, x_coord=x_coord)
     
         self.update_points_layer()
         self.update_label_layer(prediction, self.temp_class_id, x_coord)
-    
+
     def on_delete_all(self, layer):
         x_coord = None
         prediction = np.zeros_like(self.label_layer.data)
