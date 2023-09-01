@@ -12,7 +12,8 @@ A plugin for segmenting images using the Segment Anything model with focus on 3d
 
 ----------------------------------
 
-This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template. It is an adapted version of the the plugin developed by the Applied Computer Vision Lab (ACVL) of [Helmholtz Imaging](http://helmholtz-imaging.de) 
+
+This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template. It is an adapted version of [the Napari-sam plugin](https://github.com/MIC-DKFZ/napari-sam) developed by the Applied Computer Vision Lab (ACVL) of [Helmholtz Imaging](http://helmholtz-imaging.de) 
 and the [Division of Medical Image Computing](https://www.dkfz.de/en/mic/index.php) at the [German Cancer Research Center (DKFZ)](https://www.dkfz.de/en/index.html).
 
 It is adapted within the frame of a bachelor thesis to fit the needs of segmenting x-ray tomography images of lithium ion batteries at the Institute for Power Electronics and Electrical Drives (ISEA) at the RWTH university.
