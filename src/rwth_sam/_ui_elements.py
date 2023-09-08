@@ -105,6 +105,8 @@ class ClassSelector(QListWidget):
         # Ensure the QListWidget height is not less than the minimum height
         self.setMaximumHeight(max(total_height, min_height))
         
+
+#TODO: change label layer name to be the same as the input image layer name
 class UiElements:
     def __init__(self, viewer):
         self.layer_types = {"image": napari.layers.image.image.Image, "labels": napari.layers.labels.labels.Labels}

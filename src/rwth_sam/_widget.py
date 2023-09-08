@@ -21,7 +21,7 @@ from PyQt5.QtWidgets import (
 )
 from superqt.utils import qdebounced
 from tqdm import tqdm
-from vispy.util.keys import CONTROL
+from vispy.util.keys import CONTROL, SHIFT
 
 from rwth_sam._ui_elements import UiElements, AnnotatorMode
 from rwth_sam.slicer import slicer
@@ -58,6 +58,7 @@ class BboxState(Enum):
     CLICK = 0
     DRAG = 1
     RELEASE = 2
+    DELETE = 3
 
 SAM_MODELS = {
     "default": {"filename": "sam_vit_h_4b8939.pth", "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth", "model": build_sam_vit_h, "predctor": SamPredictor, "automatic_mask_generator": SamAutomaticMaskGenerator},
@@ -71,7 +72,7 @@ SAM_MODELS = {
     "MobileSAM" : {"filename": "mobile_sam.pt", "url": "https://github.com/ChaoningZhang/MobileSAM/blob/master/weights/mobile_sam.pt?raw=true", "model": build_sam_vit_t, "predctor": SamPredictorMobile, "automatic_mask_generator": SamAutomaticMaskGeneratorMobile}
 }
 # BUG: when switching images from 3D to 2D an error is thrown
-
+# BUG: when deactivating and choosing another model without loading it the activate button is still enabled
 
 class SAMWidget(QWidget):
     def __init__(self, napari_viewer):
@@ -185,6 +186,7 @@ class SAMWidget(QWidget):
         self.set_sam_logits()
 
         self.points_layer = None
+        self.bbox_layer = None
         self.submit_to_class(self.temp_class_id) # init
 
         if annotator_mode == AnnotatorMode.AUTO:
@@ -198,8 +200,13 @@ class SAMWidget(QWidget):
         self.image_name = self.ui_elements.cb_input_image_selctor.currentText()
         self.image_layer = self.viewer.layers[self.ui_elements.cb_input_image_selctor.currentText()]
         self.label_layer = self.viewer.layers[self.ui_elements.cb_output_label_selctor.currentText()]
-        
-        
+        if self.image_layer.ndim == 2:
+            self.image_shape = self.image_layer.data.shape
+        elif self.image_layer.ndim == 3:
+            self.image_shape = self.image_layer.data.shape[1:]
+            print(f"Image shape: {self.image_shape}")
+
+
         #FIXME: remove for release
         size_image_layer = asizeof.asizeof(self.image_layer)
         size_label_layer = asizeof.asizeof(self.label_layer)
@@ -211,9 +218,13 @@ class SAMWidget(QWidget):
     def set_point_size(self):
         if self.image_layer.ndim == 2:
             self.point_size = max(int(np.min(self.image_layer.data.shape[:2]) / 100), 1) # 2D Shape is (Height, Width, Channels)
+            self.bbox_edge_width = max(int(np.min(self.image_layer.data.shape[:2]) / 800), 1)
         else:
             self.point_size = max(int(np.min(self.image_layer.data.shape[-2:]) / 100), 1) # 3D Shape is (Layers, Height, Width)
+            self.bbox_edge_width = max(int(np.min(self.image_layer.data.shape[-2:]) / 800), 1)
 
+        # self.bbox_edge_width = int(self.le_bbox_edge_width.text()) #TODO: maybe add again
+ 
     def check_image_dimension(self):
         if self.image_layer.ndim not in [2, 3]:
             raise RuntimeError("Only 2D and 3D images are supported.")
@@ -235,9 +246,6 @@ class SAMWidget(QWidget):
             if self.image_layer.data.shape != self.label_layer.data.shape:
                 self.ui_elements._internal_handler_btn_activate()
                 raise RuntimeError("Image and label layer must have the same shape. Please choose another image or label layer.")
-
-
-
 
     def adjust_image_layer_shape(self):
         if self.image_layer.ndim == 3:
@@ -265,7 +273,7 @@ class SAMWidget(QWidget):
         else:
             self.sam_logits = [None] * self.image_layer.data.shape[0]
 
-    #### auto
+    ########## auto
     def activate_annotation_mode_auto(self):
         args = {
             'points_per_side': int(self.ui_elements.le_points_per_side.text()),
@@ -359,7 +367,8 @@ class SAMWidget(QWidget):
         return prediction
      """
     
-    #### click
+
+    ########## click mode (manual)
     def activate_annotation_mode_click(self):
             #TODO: add again
             #self.create_label_color_mapping() 
@@ -373,19 +382,22 @@ class SAMWidget(QWidget):
              """
 
             self.image_layer.events.contrast_limits.connect(self.debounced_on_contrast_limits_change)
-            self.viewer.mouse_drag_callbacks.append(self.callback_click)
+            self.viewer.mouse_drag_callbacks.append(self.decide_callback_for_clicks)
 
             self.set_image()
 
-            self.viewer.keymap['Delete'] = self.on_delete
-            self.viewer.keymap['Control-K'] = self.on_delete_all
+            self.viewer.keymap['Control-K'] = self.delete_selected_point
+            self.viewer.keymap['Control-Shift-K'] = self.on_delete_all
+
             # TODO: History: keymap
             """ 
             
             self.label_layer.keymap['Control-Z'] = self.on_undo
             self.label_layer.keymap['Control-Shift-Z'] = self.on_redo
              """
+    
 
+    #### preparing after activation
     def create_label_color_mapping(self, num_labels=1000):
         self.label_color_mapping = {"label_mapping": {}, "color_mapping": {}}
         for label in range(num_labels):
@@ -427,39 +439,105 @@ class SAMWidget(QWidget):
         image = normalize(image, source_limits=contrast_limits, target_limits=(0, 255)).astype(np.uint8)#
         return image
 
-    def on_contrast_limits_change(self):
-        self.set_image()
 
-    def callback_click(self, layer, event):
-        """ decides what to do when a click is performed on the image and calls the corresponding function """
-        data_coordinates = self.image_layer.world_to_data(event.position)
-        coords = np.round(data_coordinates).astype(int)
-        print(f"the selected point is: {coords}")
-        if (not CONTROL in event.modifiers) and event.button == 3:  # Positive middle click
-            self.do_point_click(coords, 1)
-            yield
-        elif CONTROL in event.modifiers and event.button == 3:  # Negative middle click
-            self.do_point_click(coords, 0)
-            yield
-        elif (not CONTROL in event.modifiers) and event.button == 1 and self.points_layer is not None and len(self.points_layer.data) > 0:
-            # Find the closest point to the mouse click
-            distances = np.linalg.norm(self.points_layer.data - coords, axis=1)
-            closest_point_idx = np.argmin(distances)
-            closest_point_distance = distances[closest_point_idx]
+    #### deactivating
+    def deactivate(self):
+        self._remove_all_widget_callbacks(self.viewer)
+        if self.label_layer is not None:
+            self._remove_all_widget_callbacks(self.label_layer)
+        if self.points_layer is not None and self.points_layer in self.viewer.layers:
+            self.viewer.layers.remove(self.points_layer)
+        if self.bbox_layer is not None and self.bbox_layer in self.viewer.layers:
+            self.viewer.layers.remove(self.bbox_layer)
 
-            # Select the closest point if it's within self.point_size pixels of the click
-            if closest_point_distance <= self.point_size:
-                self.points_layer.selected_data = {closest_point_idx}
+        self.image_layer.events.contrast_limits.disconnect(self.debounced_on_contrast_limits_change)
+
+    def _remove_all_widget_callbacks(self, layer):
+        callback_types = ['mouse_double_click_callbacks', 'mouse_drag_callbacks', 'mouse_move_callbacks',
+                          'mouse_wheel_callbacks', 'keymap']
+        for callback_type in callback_types:
+            callbacks = getattr(layer, callback_type)
+            if isinstance(callbacks, list):
+                for callback in callbacks:
+                    if inspect.ismethod(callback) and callback.__self__ == self:
+                        callbacks.remove(callback)
+            elif isinstance(callbacks, dict):
+                for key in list(callbacks.keys()):
+                    if inspect.ismethod(callbacks[key]) and callbacks[key].__self__ == self:
+                        del callbacks[key]
             else:
-                self.points_layer.selected_data = set()
+                raise RuntimeError("Could not determine callbacks type.")
+    
+
+    #### callbacks
+    def decide_callback_for_clicks(self, layer, event):
+        coords = self._get_coords(event)
+
+        if (not CONTROL in event.modifiers) and (not SHIFT in event.modifiers) and event.button == 3:  # Positive middle click
+            self.add_point(coords, 1)
             yield
+
+        elif (CONTROL in event.modifiers) and event.button == 3:  # Negative middle click
+            self.add_point(coords, 0)
+            yield
+
+        elif (not CONTROL in event.modifiers) and event.button == 1 and self.points_layer is not None and len(self.points_layer.data) > 0:
+            self.select_point(coords)
+            yield
+
         elif (CONTROL in event.modifiers) and event.button == 1:
+            self.select_label(coords)
+            yield
+
+        elif (SHIFT in event.modifiers) and event.button == 3:  # Positive middle click
+            yield from self.handle_bbox_click(event, coords)
+
+    def handle_bbox_click(self, event, initial_coords):
+        self.add_bbox(initial_coords, BboxState.CLICK)
+        yield
+        while event.type == 'mouse_move' or event.type == 'mouse_release':
+            coords = self._get_coords(event)
+            if event.type == 'mouse_move':
+                self.add_bbox(coords, BboxState.DRAG)
+            else:  # event.type == 'mouse_release':
+                self.add_bbox(coords, BboxState.RELEASE)
+            yield
+
+    def select_label(self, coords):
             picked_label = self.label_layer.data[slicer(self.label_layer.data, coords)]
             self.label_layer.selected_label = picked_label
-            yield
 
-    def do_point_click(self, coords, is_positive):
-        """ checks for repeated points, adds the point to the points list and calls the prediction function"""
+    def select_point(self, coords):
+        # Find the closest point to the mouse click
+        distances = np.linalg.norm(self.points_layer.data - coords, axis=1)
+        closest_point_idx = np.argmin(distances)
+        closest_point_distance = distances[closest_point_idx]
+
+        # Select the closest point if it's within self.point_size pixels of the click
+        if closest_point_distance <= self.point_size:
+            self.points_layer.selected_data = {closest_point_idx}
+        else:
+            self.points_layer.selected_data = set()
+
+    def add_bbox(self, coords, bbox_state):
+        if bbox_state == BboxState.CLICK:
+            self.bbox_first_coords = coords
+            return
+
+        if self.image_layer.ndim == 2:
+            self.bbox = np.asarray([self.bbox_first_coords, (self.bbox_first_coords[0], coords[1]), coords, (coords[0], self.bbox_first_coords[1])])
+        elif self.image_layer.ndim == 3:
+            self.bbox = np.asarray([self.bbox_first_coords, (self.bbox_first_coords[0], self.bbox_first_coords[1], coords[2]), coords, (self.bbox_first_coords[0], coords[1], self.bbox_first_coords[2])])
+
+        self.bbox = np.rint(self.bbox).astype(np.int32)
+
+        if bbox_state == BboxState.RELEASE:
+            self._predict_and_update_label_layer(coords)
+
+        self._update_bbox_layer(self.bbox, bbox_state)
+
+    def add_point(self, coords, is_positive):
+
         # Check if there is already a point at these coordinates
         for point in self.points:
             if np.array_equal(coords, point):
@@ -469,82 +547,212 @@ class SAMWidget(QWidget):
         self.points_labels.append(is_positive)
         self.points.append(coords)
 
-        x_coord = coords[0]
+        self._predict_and_update_label_layer(coords)
+
+        self._update_points_layer()
+
+    def submit_to_class(self, class_id):
+        self.points = []
+        self.points_labels = []
+        self.bbox = None
+        self._update_bbox_layer(self.bbox, BboxState.DELETE)
+        self._update_points_layer()
+        print(class_id)
+
+        label_layer = np.asarray(self.label_layer.data)
+        label_layer[label_layer == self.temp_class_id] = class_id
+        label_layer[label_layer == self.temp_class_id] = 0 
+
+        self.label_layer.data = label_layer
+        self.temp_label_layer = np.copy(label_layer)
+
+    def delete_selected_point(self, layer):
+
+        if self.points_layer is None or len(self.points_layer.selected_data) == 0:
+            warnings.warn("No points to delete.")
+            return
         
-        prediction = self.predict_sam(points=self.points, labels=self.points_labels, x_coord=x_coord)
+        deleted_point_index = list(self.points_layer.selected_data)[0]
+        deleted_point_coords = self.points[deleted_point_index]
 
-        self.update_points_layer()
-        self.update_label_layer(prediction, self.temp_class_id, x_coord)
+        self.points.pop(deleted_point_index)
+        self.points_labels.pop(deleted_point_index)
 
-    def predict_sam(self, points, labels, x_coord=None):
-        points = copy.deepcopy(points)
-        labels = copy.deepcopy(labels)
-        x_coord = copy.deepcopy(x_coord)
+        self._predict_and_update_label_layer(deleted_point_coords)
 
+        self._update_points_layer()
 
-        if self.image_layer.ndim == 2:
-            points = np.array(points)
-            points = np.flip(points, axis=-1)
-            labels = np.array(labels)
+    def on_delete_all(self, layer=None):
+    
+        if self.points_layer is None or len(self.points_layer.data) == 0:
+            warnings.warn("No points to delete.")
+            return
 
-            # TODO: check prev mask
-            """ 
-            logits = self.sam_logits
-            if not self.check_prev_mask.isChecked():
-                logits = None
-            """
-            logits = None
-            self.sam_predictor.features = self.sam_features
-            prediction, _, self.sam_logits = self.sam_predictor.predict(
-                point_coords=points,
-                point_labels=labels,
-                mask_input=logits,
-                multimask_output=False,
-            )
-            prediction =prediction.squeeze(axis=0) # was (1,h,w) because multimask_output=False
-        # TODO: add 3D support
-        elif self.image_layer.ndim == 3:
-            prediction = np.zeros_like(self.label_layer.data)
-
-            points = np.array(points)
+        if self.image_layer.ndim == 3:
+            points = np.array(self.points)
             x_coords = np.unique(points[:, 0])
+        elif self.image_layer.ndim == 2:
+            x_coords = [slice(None, None)]
 
-            # Group points if they are on the same image slice
-            groups = {x_coord: list(points[points[:, 0] == x_coord]) for x_coord in x_coords}
+        prediction = np.zeros(self.image_shape, dtype=np.int32)
 
-            # Extract group points and labels
-            group_points = groups[x_coord]
-            group_labels = [labels[np.argwhere(np.all(points == point, axis=1)).flatten()[0]] for point in group_points]
+        for x_coord in x_coords:
+            self._update_label_layer(prediction, self.temp_class_id, x_coord)
 
-            # removing x-coordinate (depth)
-            group_points = [point[1:] for point in group_points]
+        self.points.clear()
+        self.points_labels.clear()
+        self.bbox = None
+        
 
-            # Flip because of sam coordinates system
-            points = np.flip(group_points, axis=-1)
-            labels = np.asarray(group_labels)
+        self._update_points_layer()
+        self._update_bbox_layer(self.bbox, BboxState.DELETE)
 
-            self.sam_predictor.features = self.sam_features[x_coord]
 
-            # TODO: use when check_prev_mask is implemented
-            #logits = self.sam_logits[x_coord] if not self.check_prev_mask.isChecked() else None
+    def on_delete_all(self, layer=None):
+    
+        if self.points_layer is None:
+            warnings.warn("No points layer")
+            return
+        
+        coords_list = self._get_dummy_coords_for_delete_all()
 
-            logits = None
-            prediction_yz, _, self.sam_logits[x_coord] = self.sam_predictor.predict(
-                point_coords=points,
-                point_labels=labels,
-                mask_input=logits,
-                multimask_output=False,
-            )
+        self.points.clear()
+        self.points_labels.clear()
+        self.bbox = None
+
+        for coords in coords_list:
+            self._predict_and_update_label_layer(coords)
+
+
+        self._update_points_layer()
+        self._update_bbox_layer(self.bbox, BboxState.DELETE)
+
+    def on_contrast_limits_change(self):
+        self.set_image()
+
+#TODO: optimize: submit_to_class, on_delete_all
+
+    #### backend
+
+    def _get_coords(self, event):
+        data_coordinates = self.image_layer.world_to_data(event.position)
+        coords = np.round(data_coordinates).astype(int)
+        return coords
+
+    def _predict_and_update_label_layer(self, coords):
+        points, labels, bbox, x_coord = self._get_formatted_sam_prompt(points=self.points, labels=self.points_labels, bbox=self.bbox, coords=coords)
+        prediction = self._predict_with_sam(points=points, labels=labels, bbox=bbox, x_coord=x_coord)
+        self._update_label_layer(prediction, self.temp_class_id, x_coord)
+        print("predict_and_update_label_layer")
+        print(f"points: {points}")
+        print(f"labels: {labels}")
+        print(f"self.bbox: {self.bbox}")
+        print(f"bbox: {bbox}")
+        print(f"x_coord: {x_coord}")
+        print(f"prediction: {prediction.shape}")
+
+
+    def _get_formatted_sam_prompt(self, points, labels, bbox, coords):
+
+        if self.image_layer.ndim == 3:
+            x_coord = coords[0]
+            points, labels = self._group_points_by_slice(points, labels, x_coord)
+        else: # 2D = everything
+            x_coord = slice(None, None)
+
             
-            # Adjust shape of prediction_yz and update prediction array
-            prediction_yz = prediction_yz.squeeze(axis=0) # was (1,h,w) because multimask_output=False
-            prediction[x_coord, :, :] = prediction_yz
+        points, labels, x_coord, bbox = self._deepcopy(points, labels, x_coord, bbox)
+        points = np.array(points)
+        labels = np.array(labels)
+        # Flip because of sam coordinates system
+        points = np.flip(points, axis=-1)
+        labels = np.asarray(labels)
+        
+        if bbox is not None:
+            if self.image_layer.ndim == 3:
+                bbox = [item[1:] for item in bbox]
 
+            top_left_coord, bottom_right_coord = self.find_corners(bbox)
+            bbox = [np.flip(top_left_coord), np.flip(bottom_right_coord)]
+            bbox = np.asarray(bbox).flatten()
+        return points, labels, bbox, x_coord
+
+    def _group_points_by_slice(self, points, labels, x_coord):
+
+        # Check if there points left on the current image slice if at all
+        if not points:
+            return [], []
+
+        points = np.array(points)
+        x_coords = np.unique(points[:, 0])
+
+        if x_coord not in x_coords:
+            return [], []
+
+        # Group points if they are on the same image slice
+        groups = {x: list(points[points[:, 0] == x]) for x in x_coords}
+
+
+
+        # Extract group points and labels
+        group_points = groups[x_coord]
+        group_labels = [labels[np.argwhere(np.all(points == point, axis=1)).flatten()[0]] for point in group_points]
+
+        # Removing x-coordinate (depth)
+        group_points = [point[1:] for point in group_points]
+
+        return group_points, group_labels
+
+    def _predict_with_sam(self, points, labels, bbox, x_coord, use_prev_mask=False):
+
+        if points.size == 0 and bbox is None:
+            return np.zeros(self.image_shape, dtype=np.int32)
+        
+        elif points.size == 0 and bbox is not None:
+            points = None
+            labels = None
+
+        # TODO: use when check_prev_mask is implemented
+        if use_prev_mask:
+            logits = self.sam_logits[x_coord]
         else:
-            raise RuntimeError("Only 2D and 3D images are supported.")
-        return prediction
+            logits = None
 
-    def update_points_layer(self):
+        self.sam_predictor.features = self.sam_features[x_coord]
+        prediction, _, _ = self.sam_predictor.predict(# TODO: assign to self.sam_logits[x_coord] when check_prev_mask is implemented
+            point_coords=points,
+            point_labels=labels,
+            box=bbox,
+            mask_input=logits,
+            multimask_output=False,
+        )
+        # Adjust shape of prediction_yz and update prediction array
+        return prediction.squeeze(axis=0) # was (1,h,w) because multimask_output=False
+
+    def _update_points_layer(self):
+        if self.viewer.layers.selection.active != self.points_layer:
+            selected_layer = self.viewer.layers.selection.active
+
+        color_list = ["red" if i == 0 else "blue" for i in self.points_labels]
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning)
+            if self.points_layer is None:
+                self.points_layer = self.viewer.add_points(name="ignore this layer", data=np.asarray(self.points), face_color=color_list, edge_color="white", size=self.point_size)
+                self.points_layer.editable = False
+            else:
+                self.points_layer.data = np.asarray(self.points)
+                self.points_layer.face_color = color_list
+                self.points_layer.edge_color = "white"
+                self.points_layer.size = self.point_size
+        self.points_layer.refresh()
+
+        # Reselect selected layer
+        if selected_layer is not None:
+            self.viewer.layers.selection.active = selected_layer
+        self.points_layer.selected_data = set()
+
+    def _update_points_layer(self):
         selected_layer = None
         color_list = ["red" if i==0 else "blue" for i in self.points_labels]
         #save selected layer
@@ -563,18 +771,30 @@ class SAMWidget(QWidget):
         #reselect selected layer
         if selected_layer is not None:
             self.viewer.layers.selection.active = selected_layer
+        self.points_layer.selected_data = set()
 
-    def update_label_layer(self,prediction, point_label, x_coord):
+    def _get_dummy_coords_for_delete_all(self):
+        #TODO: add coords of bboxes
+        coords_list = []
 
-        # x_coord selects everything
-        if self.image_layer.ndim == 2:
-            x_coord = slice(None, None)
+        if self.image_layer.ndim == 3:
+            points = np.array(self.points)
+            if len(points) > 0:
+                x_coords = np.unique(points[:, 0])
+                coords_list = np.zeros((len(x_coords), 3), dtype=int)
+                coords_list[:, 0] = x_coords
+        elif self.image_layer.ndim == 2:
+            coords_list = [[0,0]]
+
+        return coords_list
+
+    def _update_label_layer(self,prediction, point_label, x_coord):
 
         label_layer = np.asarray(self.label_layer.data)
         
         # Create masks for better readability
         is_current_class = label_layer[x_coord] == point_label
-        indecies_prediction_true = prediction[x_coord] == 1
+        indecies_prediction_true = prediction == 1
         indecies_prediction_false = ~indecies_prediction_true
 
         # Reset label_layer for the current class
@@ -587,96 +807,74 @@ class SAMWidget(QWidget):
         # Update the label layer data
         self.label_layer.data = label_layer
 
-    def submit_to_class(self, class_id):
-        self.points = []
-        self.points_labels = []
-        self.update_points_layer()
-        print(class_id)
+    def _update_bbox_layer(self, bbox, bbox_state):
+        # Save selected layer
+        selected_layer = None
+        if self.viewer.layers.selection.active != self.bbox_layer:
+            selected_layer = self.viewer.layers.selection.active
 
-        label_layer = np.asarray(self.label_layer.data)
-        print(f"shape of label_layer: {label_layer.shape}")
-        label_layer[label_layer == self.temp_class_id] = class_id
-        label_layer[label_layer == self.temp_class_id] = 0 
+        bboxes = []
+        edge_colors = []
+        edge_width = []
+        face_color = []
 
-        self.label_layer.data = label_layer
-        self.temp_label_layer = np.copy(label_layer)
+        if bbox is not None:
+            bboxes = [bbox]
+            edge_width = [self.bbox_edge_width] * len(bboxes)
+            face_color = [(0, 0, 0, 0)] * len(bboxes)
 
-    def deactivate(self):
-        self.remove_all_widget_callbacks(self.viewer)
-        if self.label_layer is not None:
-            self.remove_all_widget_callbacks(self.label_layer)
-        if self.points_layer is not None and self.points_layer in self.viewer.layers:
-            self.viewer.layers.remove(self.points_layer)
+            if bbox_state == BboxState.DRAG:
+                edge_colors = ['skyblue'] * len(bboxes)
+            elif bbox_state == BboxState.RELEASE:
+                edge_colors = ['steelblue'] * len(bboxes)
 
-        self.image_layer.events.contrast_limits.disconnect(self.debounced_on_contrast_limits_change)
+        if self.bbox_layer is None and bbox is not None:
+            # Create the layer if it doesn't exist and bbox is not None
+            self.bbox_layer = self.viewer.add_shapes(name="ignore this layer", 
+                                                    data=bboxes, 
+                                                    edge_width=edge_width, 
+                                                    edge_color=edge_colors, 
+                                                    face_color=face_color, 
+                                                    opacity=1)
+            self.bbox_layer.editable = False
+        elif self.bbox_layer is not None:
+            # Update the data and colors if the layer already exists
+            self.bbox_layer.data = bboxes
+            self.bbox_layer.edge_width = edge_width if edge_width else self.bbox_layer.edge_width
+            self.bbox_layer.edge_color = edge_colors if edge_colors else self.bbox_layer.edge_color
+            self.bbox_layer.face_color = face_color if face_color else self.bbox_layer.face_color
+            self.bbox_layer.refresh()
 
-    def remove_all_widget_callbacks(self, layer):
-        callback_types = ['mouse_double_click_callbacks', 'mouse_drag_callbacks', 'mouse_move_callbacks',
-                          'mouse_wheel_callbacks', 'keymap']
-        for callback_type in callback_types:
-            callbacks = getattr(layer, callback_type)
-            if isinstance(callbacks, list):
-                for callback in callbacks:
-                    if inspect.ismethod(callback) and callback.__self__ == self:
-                        callbacks.remove(callback)
-            elif isinstance(callbacks, dict):
-                for key in list(callbacks.keys()):
-                    if inspect.ismethod(callbacks[key]) and callbacks[key].__self__ == self:
-                        del callbacks[key]
-            else:
-                raise RuntimeError("Could not determine callbacks type.")
-    
-    def on_delete(self, layer):
-        if self.points_layer is None or len(self.points_layer.selected_data) == 0:
-            raise RuntimeError("No point selected.")
+        # Reselect selected layer
+        if selected_layer is not None:
+            self.viewer.layers.selection.active = selected_layer
 
-        selected_point = list(self.points_layer.selected_data)[0]
-        print(selected_point)
-        print(type(selected_point))
-        x_coord = None
-        if self.image_layer.ndim == 3:
-            x_coord = self.points[selected_point][0]
-        
-        self.points.pop(selected_point)
-        self.points_labels.pop(selected_point)
-        
-        if len(self.points) == 0:
-            prediction = np.zeros_like(self.label_layer.data)
+    #### utils and misc
+    def _deepcopy(self, *args):
+        return tuple(copy.deepcopy(arg) for arg in args)
 
-        elif self.image_layer.ndim == 3:
-            points = copy.deepcopy(self.points)
-            points = np.array(points)
-            x_coords = np.unique(points[:, 0])
-            groups = {x_coord: list(points[points[:, 0] == x_coord]) for x_coord in x_coords}
+    def find_corners(self, coords):
+        # convert the coordinates to numpy arrays
+        coords = np.array(coords)
 
-        if len(self.points) > 0:
-            # are there points in the current slice left?
-            if self.image_layer.ndim == 3 and x_coord not in groups.keys():
-                prediction = np.zeros_like(self.label_layer.data)
+        # find the indices of the leftmost, rightmost, topmost, and bottommost coordinates
+        left_idx = np.min(coords[:, 0])
+        right_idx = np.max(coords[:, 0])
+        top_idx = np.min(coords[:, 1])
+        bottom_idx = np.max(coords[:, 1])
 
-            else:
-                prediction = self.predict_sam(points=self.points, labels=self.points_labels, x_coord=x_coord)
-    
-        self.update_points_layer()
-        self.update_label_layer(prediction, self.temp_class_id, x_coord)
+        # determine the top left and bottom right coordinates
+        # top_left_coord = coords[top_idx, :] if left_idx != top_idx else coords[right_idx, :]
+        # bottom_right_coord = coords[bottom_idx, :] if right_idx != bottom_idx else coords[left_idx, :]
 
-    def on_delete_all(self, layer):
-        x_coord = None
-        prediction = np.zeros_like(self.label_layer.data)
+        top_left_coord = [left_idx, top_idx]
+        bottom_right_coord = [right_idx, bottom_idx]
 
-        if self.image_layer.ndim == 2:
-            self.update_label_layer(prediction, self.temp_class_id, x_coord)
-        else:
-            x_coords = [point[0] for point in self.points]
-            for x_coord in x_coords:
-                self.update_label_layer(prediction, self.temp_class_id, x_coord) 
-
-        self.points.clear()
-        self.points_labels.clear()
-        self.update_points_layer()
+        return top_left_coord, bottom_right_coord
 
 
-
+#BUG: when closing the widget and reopening it, the old model is lost and it can't be deactivated anymore.
+#FIXME: when adding more classes the names of the old ones are lost.
 class SegmentationProfileQWidget(QWidget):
     def __init__(self, napari_viewer):
         super().__init__()
