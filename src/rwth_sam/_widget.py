@@ -531,10 +531,15 @@ class SAMWidget(QWidget):
 
         self.bbox = np.rint(self.bbox).astype(np.int32)
 
+        x_coord = self._get_x_coord_for_given_coords(coords)
+        self.bboxes[str(x_coord)] = self.bbox # using str because x_coord can be slice(None, None) for 2D images
+
+
+
         if bbox_state == BboxState.RELEASE:
             self._predict_and_update_label_layer(coords)
 
-        self._update_bbox_layer(self.bbox, bbox_state)
+        self._update_bbox_layer(bbox_state)
 
     def add_point(self, coords, is_positive):
 
@@ -554,8 +559,9 @@ class SAMWidget(QWidget):
     def submit_to_class(self, class_id):
         self.points = []
         self.points_labels = []
+        self.bboxes = {}
         self.bbox = None
-        self._update_bbox_layer(self.bbox, BboxState.DELETE)
+        self._update_bbox_layer(BboxState.DELETE)
         self._update_points_layer()
         print(class_id)
 
@@ -584,32 +590,6 @@ class SAMWidget(QWidget):
 
     def on_delete_all(self, layer=None):
     
-        if self.points_layer is None or len(self.points_layer.data) == 0:
-            warnings.warn("No points to delete.")
-            return
-
-        if self.image_layer.ndim == 3:
-            points = np.array(self.points)
-            x_coords = np.unique(points[:, 0])
-        elif self.image_layer.ndim == 2:
-            x_coords = [slice(None, None)]
-
-        prediction = np.zeros(self.image_shape, dtype=np.int32)
-
-        for x_coord in x_coords:
-            self._update_label_layer(prediction, self.temp_class_id, x_coord)
-
-        self.points.clear()
-        self.points_labels.clear()
-        self.bbox = None
-        
-
-        self._update_points_layer()
-        self._update_bbox_layer(self.bbox, BboxState.DELETE)
-
-
-    def on_delete_all(self, layer=None):
-    
         if self.points_layer is None:
             warnings.warn("No points layer")
             return
@@ -618,6 +598,7 @@ class SAMWidget(QWidget):
 
         self.points.clear()
         self.points_labels.clear()
+        self.bboxes = {}
         self.bbox = None
 
         for coords in coords_list:
@@ -625,7 +606,7 @@ class SAMWidget(QWidget):
 
 
         self._update_points_layer()
-        self._update_bbox_layer(self.bbox, BboxState.DELETE)
+        self._update_bbox_layer(BboxState.DELETE)
 
     def on_contrast_limits_change(self):
         self.set_image()
@@ -633,7 +614,6 @@ class SAMWidget(QWidget):
 #TODO: optimize: submit_to_class, on_delete_all
 
     #### backend
-
     def _get_coords(self, event):
         data_coordinates = self.image_layer.world_to_data(event.position)
         coords = np.round(data_coordinates).astype(int)
@@ -651,16 +631,12 @@ class SAMWidget(QWidget):
         print(f"x_coord: {x_coord}")
         print(f"prediction: {prediction.shape}")
 
-
     def _get_formatted_sam_prompt(self, points, labels, bbox, coords):
 
-        if self.image_layer.ndim == 3:
-            x_coord = coords[0]
-            points, labels = self._group_points_by_slice(points, labels, x_coord)
-        else: # 2D = everything
-            x_coord = slice(None, None)
+        x_coord = self._get_x_coord_for_given_coords(coords)
 
-            
+        points, labels = self._group_points_by_slice(points, labels, x_coord)
+
         points, labels, x_coord, bbox = self._deepcopy(points, labels, x_coord, bbox)
         points = np.array(points)
         labels = np.array(labels)
@@ -668,16 +644,29 @@ class SAMWidget(QWidget):
         points = np.flip(points, axis=-1)
         labels = np.asarray(labels)
         
+
+        bbox = self.bboxes.get(str(x_coord), None)
+
         if bbox is not None:
             if self.image_layer.ndim == 3:
                 bbox = [item[1:] for item in bbox]
 
-            top_left_coord, bottom_right_coord = self.find_corners(bbox)
+            top_left_coord, bottom_right_coord = self._find_corners(bbox)
             bbox = [np.flip(top_left_coord), np.flip(bottom_right_coord)]
             bbox = np.asarray(bbox).flatten()
         return points, labels, bbox, x_coord
+    
+    def _get_x_coord_for_given_coords(self, coords):
+        if self.image_layer.ndim == 3:
+            x_coord = coords[0]
+        else: # 2D = everything
+            x_coord = slice(None, None)
+        return x_coord
 
     def _group_points_by_slice(self, points, labels, x_coord):
+
+        if x_coord == slice(None, None):
+            return points, labels
 
         # Check if there points left on the current image slice if at all
         if not points:
@@ -691,8 +680,6 @@ class SAMWidget(QWidget):
 
         # Group points if they are on the same image slice
         groups = {x: list(points[points[:, 0] == x]) for x in x_coords}
-
-
 
         # Extract group points and labels
         group_points = groups[x_coord]
@@ -776,13 +763,26 @@ class SAMWidget(QWidget):
     def _get_dummy_coords_for_delete_all(self):
         #TODO: add coords of bboxes
         coords_list = []
-
+        coords_list1 = []
+        coords_list2 = []
+        bboxes_corners_list = [bbox[0] for bbox in list(self.bboxes.values())]
+ 
         if self.image_layer.ndim == 3:
             points = np.array(self.points)
             if len(points) > 0:
                 x_coords = np.unique(points[:, 0])
-                coords_list = np.zeros((len(x_coords), 3), dtype=int)
-                coords_list[:, 0] = x_coords
+                coords_list1 = np.zeros((len(x_coords), 3), dtype=int)
+                coords_list1[:, 0] = x_coords
+                coords_list1 = coords_list1.tolist()
+            
+            bboxes_corners_list = np.array(bboxes_corners_list)
+            if len(bboxes_corners_list) > 0:
+                x_coords = np.unique(bboxes_corners_list[:, 0])
+                coords_list2 = np.zeros((len(x_coords), 3), dtype=int)
+                coords_list2[:, 0] = x_coords
+                coords_list2 = coords_list2.tolist()
+            
+            coords_list = coords_list1 + coords_list2
         elif self.image_layer.ndim == 2:
             coords_list = [[0,0]]
 
@@ -807,29 +807,26 @@ class SAMWidget(QWidget):
         # Update the label layer data
         self.label_layer.data = label_layer
 
-    def _update_bbox_layer(self, bbox, bbox_state):
+    def _update_bbox_layer(self, bbox_state):
         # Save selected layer
         selected_layer = None
         if self.viewer.layers.selection.active != self.bbox_layer:
             selected_layer = self.viewer.layers.selection.active
 
-        bboxes = []
-        edge_colors = []
-        edge_width = []
-        face_color = []
 
-        if bbox is not None:
-            bboxes = [bbox]
-            edge_width = [self.bbox_edge_width] * len(bboxes)
-            face_color = [(0, 0, 0, 0)] * len(bboxes)
+        bboxes = list(self.bboxes.values())
+        edge_width = [self.bbox_edge_width] * len(bboxes)
+        face_color = [(0, 0, 0, 0)] * len(bboxes)
 
-            if bbox_state == BboxState.DRAG:
-                edge_colors = ['skyblue'] * len(bboxes)
-            elif bbox_state == BboxState.RELEASE:
-                edge_colors = ['steelblue'] * len(bboxes)
+        if bbox_state == BboxState.DRAG:
+            edge_colors = ['skyblue'] * len(bboxes)
+        elif bbox_state == BboxState.RELEASE:
+            edge_colors = ['steelblue'] * len(bboxes)
+        elif bbox_state == BboxState.DELETE:
+            edge_colors = ['red'] * len(bboxes) # dummy color
 
-        if self.bbox_layer is None and bbox is not None:
-            # Create the layer if it doesn't exist and bbox is not None
+        if self.bbox_layer is None:
+            # Create the layer if it doesn't exist
             self.bbox_layer = self.viewer.add_shapes(name="ignore this layer", 
                                                     data=bboxes, 
                                                     edge_width=edge_width, 
@@ -837,6 +834,7 @@ class SAMWidget(QWidget):
                                                     face_color=face_color, 
                                                     opacity=1)
             self.bbox_layer.editable = False
+
         elif self.bbox_layer is not None:
             # Update the data and colors if the layer already exists
             self.bbox_layer.data = bboxes
@@ -853,7 +851,7 @@ class SAMWidget(QWidget):
     def _deepcopy(self, *args):
         return tuple(copy.deepcopy(arg) for arg in args)
 
-    def find_corners(self, coords):
+    def _find_corners(self, coords):
         # convert the coordinates to numpy arrays
         coords = np.array(coords)
 
@@ -871,6 +869,9 @@ class SAMWidget(QWidget):
         bottom_right_coord = [right_idx, bottom_idx]
 
         return top_left_coord, bottom_right_coord
+
+
+
 
 
 #BUG: when closing the widget and reopening it, the old model is lost and it can't be deactivated anymore.
