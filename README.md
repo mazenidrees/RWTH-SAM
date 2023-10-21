@@ -39,7 +39,7 @@ Activate the conda environment:
 ```bash
 conda activate rwth-sam
 ```
-Open Napari
+Open Napari by runnig:
 ```bash
 Napari
 ```
