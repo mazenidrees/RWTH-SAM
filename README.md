@@ -29,7 +29,6 @@ conda env create -f rwth_sam_conda.yml
 
 ## Usage
 
----
 ### Table of Contents
 - [Opening Napari](#opening-napari)
 - [Finding The Plugin](#finding-the-plugin)
@@ -59,6 +58,7 @@ Open Napari by runnig:
 ```bash
 Napari
 ```
+---
 
 ### Finding The Plugin
 the plugin is accessible from the plugin menu in Napari.
@@ -66,6 +66,8 @@ the plugin is accessible from the plugin menu in Napari.
 <img width="540" alt="image" src="https://github.com/mazenidrees/RWTH-SAM/assets/130779425/9f99f48f-c410-4a13-b8d9-519a58a56126">
 
 Two widgets are provided:
+
+---
 
 ### The Main Widget
 The RWTH-SAM widget is designed for choosing the desired settings and for performing the segmentation.
@@ -96,12 +98,16 @@ In the main widget, there is an option to choose between semi-automatic annotati
 
 <img width="278" alt="image" src="https://github.com/mazenidrees/RWTH-SAM/assets/130779425/35e44665-bb55-4337-b1df-56bbc105ad2b">
 
+---
+
 ### The Segmentation Profile Creation Widget
 As the name suggests, this widget is responsible for creating a segmentation profile containing the classes present in a dataset.
 
 https://github.com/mazenidrees/RWTH-SAM/assets/130779425/930f0f15-0562-4816-a12c-1ed3f1adc341
 
 Segmentation profiles can be stored as JSON files and accessed later. While JSON files are not native to Napari, the plugin will automatically manage their opening.
+
+---
 
 ### Activating
 Once you've selected all the required settings, the 'Activate' button becomes available.
@@ -110,9 +116,12 @@ Click on this button to initiate the segmentation process. A progress bar will t
 
 https://github.com/mazenidrees/RWTH-SAM/assets/130779425/344edf0d-d608-4ba9-9587-739af6b5a459
 
+---
 
 ### Performing the segmentation in semi-automatic mode (click)
 Using a combination of mouse clicks and modifier keys (control, shift), users can guide SAM with positive points, negative points, and bounding boxes. A temporary green mask will be displayed upon that. This mask can be further refined with more prompts. Once satisfied, the mask must be submitted to one of the classes available in the right menu.
+
+---
 
 #### Positive Points
 Positive points indicate to SAM where to search for an object. 
@@ -143,6 +152,8 @@ After selecting the label layer from the left layer list, the tools will appear 
 Masks can only be modified after being submitted to a class.
 By picking the color linked to the desired class, you can paint or erase on a mask.
 Currently, clicking "submit to class" is required to save changes. This will be addressed in the subsequent update.
+
+---
 
 ### Settings for Automatic Mask Generation
 
