@@ -30,6 +30,7 @@ conda env create -f rwth_sam_conda.yml
 ## Usage
 
 ### Table of Contents
+
 - [Opening Napari](#opening-napari)
 - [Finding The Plugin](#finding-the-plugin)
 - [The Main Widget](#the-main-widget)
@@ -46,10 +47,14 @@ conda env create -f rwth_sam_conda.yml
   - [Deleting Prompts](#deleting-prompts)
   - [Manual Modifications to Masks](#manual-modifications-to-masks)
 - [Settings for Automatic Mask Generation](#settings-for-automatic-mask-generation)
----
+
 
 
 ### Opening Napari
+
+<details>
+<summary>View Details</summary>
+
 Activate the conda environment:
 ```bash
 conda activate rwth-sam
@@ -58,18 +63,29 @@ Open Napari by runnig:
 ```bash
 Napari
 ```
----
+
+
+</details>
+
 
 ### Finding The Plugin
+
+<details>
+<summary>View Details</summary>
+
 the plugin is accessible from the plugin menu in Napari.
 
 <img width="540" alt="image" src="https://github.com/mazenidrees/RWTH-SAM/assets/130779425/9f99f48f-c410-4a13-b8d9-519a58a56126">
 
 Two widgets are provided:
 
----
+</details>
+
 
 ### The Main Widget
+<details>
+<summary>View Details</summary>
+
 The RWTH-SAM widget is designed for choosing the desired settings and for performing the segmentation.
 
 #### Widget Opening and Model Selection
@@ -98,30 +114,41 @@ In the main widget, there is an option to choose between semi-automatic annotati
 
 <img width="278" alt="image" src="https://github.com/mazenidrees/RWTH-SAM/assets/130779425/35e44665-bb55-4337-b1df-56bbc105ad2b">
 
----
+</details>
+
 
 ### The Segmentation Profile Creation Widget
+
+<details>
+<summary>View Details</summary>
+
 As the name suggests, this widget is responsible for creating a segmentation profile containing the classes present in a dataset.
 
 https://github.com/mazenidrees/RWTH-SAM/assets/130779425/930f0f15-0562-4816-a12c-1ed3f1adc341
 
 Segmentation profiles can be stored as JSON files and accessed later. While JSON files are not native to Napari, the plugin will automatically manage their opening.
 
----
+</details>
 
 ### Activating
+
+<details>
+<summary>View Details</summary>
+
 Once you've selected all the required settings, the 'Activate' button becomes available.
 Click on this button to initiate the segmentation process. A progress bar will then show up to provide feedback on the ongoing process.
 
 
 https://github.com/mazenidrees/RWTH-SAM/assets/130779425/344edf0d-d608-4ba9-9587-739af6b5a459
 
----
+</details>
 
 ### Performing the segmentation in semi-automatic mode (click)
+<details>
+<summary>View Details</summary>
+
 Using a combination of mouse clicks and modifier keys (control, shift), users can guide SAM with positive points, negative points, and bounding boxes. A temporary green mask will be displayed upon that. This mask can be further refined with more prompts. Once satisfied, the mask must be submitted to one of the classes available in the right menu.
 
----
 
 #### Positive Points
 Positive points indicate to SAM where to search for an object. 
@@ -153,9 +180,14 @@ Masks can only be modified after being submitted to a class.
 By picking the color linked to the desired class, you can paint or erase on a mask.
 Currently, clicking "submit to class" is required to save changes. This will be addressed in the subsequent update.
 
----
+</details>
+
 
 ### Settings for Automatic Mask Generation
+
+<details>
+<summary>View Details</summary>
+
 
 Referenced from [SAM's official documentation](https://github.com/facebookresearch/segment-anything/blob/main/segment_anything/automatic_mask_generator.py):
 
@@ -192,7 +224,7 @@ Referenced from [SAM's official documentation](https://github.com/facebookresear
 - **Min mask region area:** 
   If set to >0, post-processing is employed to eradicate disconnected regions and mask holes smaller than `min_mask_region_area`. This feature requires OpenCV.
 
-
+</details>
 
 
 
