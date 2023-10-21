@@ -1,9 +1,7 @@
 # from napari_sam.QCollapsibleBox import QCollapsibleBox
 import os
-from collections import deque, defaultdict
 from enum import Enum
 from pathlib import Path
-from os.path import join
 
 from vispy.util.keys import CONTROL
 
@@ -11,12 +9,10 @@ import napari
 import qtpy
 from qtpy import QtCore
 from qtpy.QtCore import Qt
-from qtpy.QtGui import QIntValidator, QDoubleValidator
+from qtpy.QtGui import QIntValidator, QDoubleValidator, QColor, QBrush
 from qtpy.QtWidgets import (
     QApplication,
-    QCheckBox,
     QComboBox,
-    QDockWidget,
     QGroupBox,
     QLabel,
     QLineEdit,
@@ -28,6 +24,7 @@ from qtpy.QtWidgets import (
     QSizePolicy,
     QVBoxLayout,
     QWidget,
+    QStyledItemDelegate
 )
 
 
@@ -104,6 +101,113 @@ class ClassSelector(QListWidget):
 
         # Ensure the QListWidget height is not less than the minimum height
         self.setMaximumHeight(max(total_height, min_height))
+
+
+class ColorDelegate(QStyledItemDelegate):
+
+    def paint(self, painter, option, index):
+        rect = option.rect
+        color_rect_width = 20
+        spacing = 5
+
+        bg_color = index.data(Qt.UserRole + 1)  # Using a custom role to avoid conflicts
+        if bg_color:
+            painter.save()  # Save painter state
+            
+            # Draw colored rectangle
+            painter.fillRect(
+                rect.left() + spacing, 
+                rect.top() + spacing, 
+                color_rect_width, 
+                rect.height() - 2*spacing, 
+                bg_color
+            )
+            
+            # Draw black border
+            painter.setPen(QColor(Qt.black))
+            painter.drawRect(
+                rect.left() + spacing, 
+                rect.top() + spacing, 
+                color_rect_width, 
+                rect.height() - 2*spacing
+            )
+            
+            painter.restore()  # Restore painter state
+
+        # Adjust text position
+        option.rect.adjust(color_rect_width + 2*spacing, 0, 0, 0)
+
+        QStyledItemDelegate.paint(self, painter, option, index)
+
+
+
+
+
+
+
+
+def numpy_color_to_qcolor(np_color):
+    """Converts a numpy RGBA color (floats in range [0, 1]) to QColor (integers in range [0, 255])."""
+    if np_color is None:
+        return QColor()  # Default QColor (which is an invalid color; i.e., QColor().isValid() is False)
+    
+    r, g, b, a = np_color
+    return QColor(int(r * 255), int(g * 255), int(b * 255), int(a * 255))
+
+
+class ClassSelector(QListWidget):
+    def __init__(self, viewer):
+        super().__init__()
+        self.viewer = viewer
+        self.update_classes()
+        self.setItemDelegate(ColorDelegate())
+        # connect a method to the itemSelectionChanged signal
+        self.itemSelectionChanged.connect(self.item_selected)
+
+        # Styling the selection using QSS to make the text bold on selection
+        self.setStyleSheet("QListWidget::item { background-color: transparent; }")
+
+    def update_classes(self, classes=None):
+        self.clear()
+        if classes:
+            for class_name in classes:
+                self.addItem(class_name)
+        # Adjust the height of the QListWidget based on the content
+        self.adjust_height()
+
+    def update_colors(self):
+        for idx in range(self.count()):
+            item = self.item(idx)
+            if idx in self.label_colors_dict:
+                rect_color = numpy_color_to_qcolor(self.label_colors_dict[idx+1]) # +1 because the first class is transparent background
+                print(f"Setting color for index {idx}:", rect_color.name())  # Debug print
+                if not rect_color.isValid():
+                    continue
+                    
+                item.setData(Qt.UserRole + 1, QBrush(rect_color))
+
+
+
+    def set_colors(self, label_colors_dict):
+        self.label_colors_dict = label_colors_dict
+
+    def item_selected(self):
+        # get the text of the currently selected item
+        selected_index = self.currentRow()
+        print(f'Selected index: {selected_index}')
+
+    def adjust_height(self):
+        # The minimum height of QListWidget
+        min_height = 100  # Set this to your desired minimum height
+        # Calculate the total height of all items
+        total_height = sum([self.sizeHintForRow(i) for i in range(self.count())])
+        # Add the spacing (margin) around items in the list
+        total_height += self.count() * self.spacing()
+        # Ensure the QListWidget height is not less than the minimum height
+        self.setMaximumHeight(max(total_height, min_height))
+
+
+
         
 
 #TODO: change label layer name to be the same as the input image layer name
@@ -138,6 +242,9 @@ class UiElements:
         self.le_crop_n_points_downscale_factor = None
         self.le_minimum_mask_region_area = None
         
+
+        self.progress_bars = []
+        self.labels = []
 
         self._init_main_layout()
         self._init_UI_signals()
@@ -203,9 +310,10 @@ class UiElements:
         self.rb_annotation_mode_click.setToolTip(
             "Positive Click: Middle Mouse Button\n \n"
             "Negative Click: Control + Middle Mouse Button \n \n"
-            "Undo: Control + Z \n \n"
+            "Bounding Box: Shift + Middle Mouse Button + Drag \n \n"
             "Select Point: Left Click \n \n"
-            "Delete Selected Point: Delete"
+            "Delete Selected Point: Control + K \n \n"
+            "Delete All Prompts: Control + Shift + K \n \n"
         )
         self.l_annotation.addWidget(self.rb_annotation_mode_click)
 
@@ -266,13 +374,14 @@ class UiElements:
         
         self.g_info_click = QGroupBox("Click Mode")
         self.l_info_click = QVBoxLayout()
-        self.label_info_click = QLabel("\nPositive Click: Middle Mouse Button\n \n"
-                                 "Negative Click: Control + Middle Mouse Button\n \n"
-                                 "Undo: Control + Z\n \n"
-                                 "Select Point: Left Click\n \n"
-                                 "Delete Selected Point: Delete\n \n"
-                                 "Pick Label: Control + Left Click\n \n"
-                                 "Increment Label: M\n \n")
+        self.label_info_click = QLabel(
+            "Positive Click: Middle Mouse Button\n \n"
+            "Negative Click: Control + Middle Mouse Button \n \n"
+            "Bounding Box: Shift + Middle Mouse Button + Drag \n \n"
+            "Select Point: Left Click \n \n"
+            "Delete Selected Point: Control + K \n \n"
+            "Delete All Prompts: Control + Shift + K \n \n"
+        )
         self.label_info_click.setWordWrap(True)
         self.l_info_click.addWidget(self.label_info_click)
         self.g_info_click.setLayout(self.l_info_click)
@@ -288,7 +397,7 @@ class UiElements:
         container_layout_auto = QVBoxLayout(container_widget_auto)
 
         # self.g_auto_mode_settings = QCollapsibleBox("Everything Mode Settings")
-        self.g_auto_mode_settings = QGroupBox("Everything Mode Settings")
+        self.g_auto_mode_settings = QGroupBox("Automatic Mode Settings")
         self.l_auto_mode_settings = QVBoxLayout()
 
         l_points_per_side = QLabel("Points per side:")
@@ -349,7 +458,7 @@ class UiElements:
         self.le_box_nms_threshold.setValidator(validator)
         self.l_auto_mode_settings.addWidget(self.le_box_nms_threshold)
 
-        l_crop_n_layers = QLabel("Crop N layers")
+        l_crop_n_layers = QLabel("Crop N layers:")
         self.l_auto_mode_settings.addWidget(l_crop_n_layers)
         validator = QIntValidator()
         validator.setRange(0, 9999)
@@ -378,7 +487,7 @@ class UiElements:
         self.le_crop_overlap_ratio.setValidator(validator)
         self.l_auto_mode_settings.addWidget(self.le_crop_overlap_ratio)
 
-        l_crop_n_points_downscale_factor = QLabel("Crop N points downscale factor")
+        l_crop_n_points_downscale_factor = QLabel("Crop N points downscale factor:")
         self.l_auto_mode_settings.addWidget(l_crop_n_points_downscale_factor)
         validator = QIntValidator()
         validator.setRange(0, 9999)
@@ -387,7 +496,7 @@ class UiElements:
         self.le_crop_n_points_downscale_factor.setValidator(validator)
         self.l_auto_mode_settings.addWidget(self.le_crop_n_points_downscale_factor)
 
-        l_min_mask_region_area = QLabel("Min mask region area")
+        l_min_mask_region_area = QLabel("Min mask region area:")
         self.l_auto_mode_settings.addWidget(l_min_mask_region_area)
         validator = QIntValidator()
         validator.setRange(0, 9999)
@@ -581,7 +690,7 @@ class UiElements:
 
 
     ################################ externally activated UI elements ################################
-
+#TODO: delete old functions after making sure the new ones work
     def create_progress_bar(self, max_value, text):
         self.l_creating_features = QLabel(text)
         self.main_layout.addWidget(self.l_creating_features)
@@ -597,6 +706,29 @@ class UiElements:
     def delete_progress_bar(self):
         self.progress_bar.deleteLater()
         self.l_creating_features.deleteLater()
+
+    def create_progress_bar(self, max_value, text):
+        l_creating_features = QLabel(text)
+        self.main_layout.addWidget(l_creating_features)
+        progress_bar = QProgressBar()
+        progress_bar.setMaximum(max_value)
+        progress_bar.setValue(0)
+        self.main_layout.addWidget(progress_bar)
+        
+        self.progress_bars.append(progress_bar)
+        self.labels.append(l_creating_features)
+
+    def update_progress_bar(self, value):
+        if self.progress_bars:  # check if list is not empty
+            self.progress_bars[-1].setValue(value)  # update the last progress bar
+            QApplication.processEvents()
+
+    def delete_progress_bar(self):
+        if self.progress_bars:  # check if list is not empty
+            self.progress_bars[-1].deleteLater()
+            self.labels[-1].deleteLater()
+            self.progress_bars.pop()
+            self.labels.pop()
 
 
     ################################ utilities ################################
