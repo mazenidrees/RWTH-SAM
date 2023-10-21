@@ -71,8 +71,9 @@ SAM_MODELS = {
     "MedSAM": {"filename": "sam_vit_b_01ec64_medsam.pth", "url": "https://syncandshare.desy.de/index.php/s/yLfdFbpfEGSHJWY/download/medsam_20230423_vit_b_0.0.1.pth", "model": build_sam_vit_b, "predctor": SamPredictor, "automatic_mask_generator": SamAutomaticMaskGenerator},
     "MobileSAM" : {"filename": "mobile_sam.pt", "url": "https://github.com/ChaoningZhang/MobileSAM/blob/master/weights/mobile_sam.pt?raw=true", "model": build_sam_vit_t, "predctor": SamPredictorMobile, "automatic_mask_generator": SamAutomaticMaskGeneratorMobile}
 }
-# BUG: when switching images from 3D to 2D an error is thrown
+# BUG: (possible) when switching images from 3D to 2D an error is thrown 
 # BUG: when deactivating and choosing another model without loading it the activate button is still enabled
+# BuG: when ereasing or painting on the label layer the modifications are not lost with new prompts. Possible solution: Submit to class before new prompt to save the changes
 
 class SAMWidget(QWidget):
     def __init__(self, napari_viewer):
@@ -127,7 +128,7 @@ class SAMWidget(QWidget):
         else:
             device = "cuda"
             torch.cuda.empty_cache()
-        device = "cpu" #FIXME: Remove #DEBUG 
+
         self.sam_model = SAM_MODELS[model_type]["model"](self.get_weights_path(model_type))
 
         self.sam_model.to(device)
@@ -179,21 +180,54 @@ class SAMWidget(QWidget):
 
     ################################ activating sam ################################
     def activate(self, annotator_mode):
-        self.set_layers()
-        self.set_point_size()
-        self.check_image_dimension()
-        self.adjust_image_layer_shape()
-        self.set_sam_logits()
+        total_steps = 10  # Assume there are 10 major steps in the activation process
+        self.ui_elements.create_progress_bar(total_steps, "Activating:")
+        try:
+            # Step 1
+            self.points_layer = None
+            self.bbox_layer = None
+            self.ui_elements.update_progress_bar(1)
 
-        self.points_layer = None
-        self.bbox_layer = None
-        self.submit_to_class(self.temp_class_id) # init
+            # Step 2
+            self.set_layers()
+            self.ui_elements.update_progress_bar(2)
 
-        if annotator_mode == AnnotatorMode.AUTO:
-            self.activate_annotation_mode_auto()
+            # And so on for each major step...
+            self.set_point_size()
+            self.ui_elements.update_progress_bar(3)
 
-        elif annotator_mode == AnnotatorMode.CLICK:
-            self.activate_annotation_mode_click()
+            self.check_image_dimension()
+            self.ui_elements.update_progress_bar(4)
+
+            self.adjust_image_layer_shape()
+            self.ui_elements.update_progress_bar(5)
+
+            self.set_sam_logits()
+            self.ui_elements.update_progress_bar(6)
+
+            self.create_label_color_mapping()
+            self.ui_elements.update_progress_bar(7)
+
+            self.ui_elements.cs_class_selector.set_colors(self.label_color_mapping["label_mapping"])
+            self.ui_elements.update_progress_bar(8)
+
+            self.submit_to_class(self.temp_class_id)  # init
+            self.ui_elements.update_progress_bar(9)
+
+            # Step 10
+            if annotator_mode == AnnotatorMode.AUTO:
+                self.activate_annotation_mode_auto()
+            elif annotator_mode == AnnotatorMode.CLICK:
+                self.activate_annotation_mode_click()
+            self.ui_elements.update_progress_bar(10)
+
+        except Exception as e:
+            # Here, you can handle the error or print it, if desired
+            print(f"Error encountered: {e}")
+            self.ui_elements.delete_progress_bar()  # This will stop the progress bar
+            raise e  # Re-raise the exception for further handling, if needed
+
+        self.ui_elements.delete_progress_bar()
 
     #### preparing
     def set_layers(self):
@@ -370,8 +404,7 @@ class SAMWidget(QWidget):
 
     ########## click mode (manual)
     def activate_annotation_mode_click(self):
-            #TODO: add again
-            #self.create_label_color_mapping() 
+
 
             # TODO: History
             """ 
@@ -467,7 +500,6 @@ class SAMWidget(QWidget):
                         del callbacks[key]
             else:
                 raise RuntimeError("Could not determine callbacks type.")
-    
 
     #### callbacks
     def decide_callback_for_clicks(self, layer, event):
@@ -542,7 +574,6 @@ class SAMWidget(QWidget):
         self._update_bbox_layer(bbox_state)
 
     def add_point(self, coords, is_positive):
-
         # Check if there is already a point at these coordinates
         for point in self.points:
             if np.array_equal(coords, point):
@@ -759,6 +790,7 @@ class SAMWidget(QWidget):
         if selected_layer is not None:
             self.viewer.layers.selection.active = selected_layer
         self.points_layer.selected_data = set()
+        self.ui_elements.cs_class_selector.update_colors() # for some reason, napari is reseting them!
 
     def _get_dummy_coords_for_delete_all(self):
         #TODO: add coords of bboxes
@@ -905,7 +937,7 @@ class SegmentationProfileQWidget(QWidget):
         self._update_class_fields()
 
         # Save button
-        save_btn = QPushButton("Save Profile")
+        save_btn = QPushButton("Create Profile")
         save_btn.clicked.connect(self._save_profile)
         layout.addWidget(save_btn)
 
