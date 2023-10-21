@@ -1,5 +1,5 @@
 # RWTH-SAM
-A plugin for segmenting images using the Segment Anything model with focus on 3d CT-images of batteries
+A plugin for segmenting images using the [Segment Anything model](https://github.com/facebookresearch/segment-anything) with focus on 3d CT-images of batteries
 
 
 This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template. It is inspired by [the Napari-sam plugin](https://github.com/MIC-DKFZ/napari-sam) developed by the Applied Computer Vision Lab (ACVL) of [Helmholtz Imaging](http://helmholtz-imaging.de) 
@@ -55,6 +55,8 @@ Two widgets are provided:
 The RWTH-SAM widget is designed for choosing the desired settings and for performing the segmentation.
 
 #### Widget Opening and Model Selection
+The plugin supports various SAM versions, including the [original models](https://github.com/facebookresearch/segment-anything) (ViT-H, ViT-L, ViT-B), [HQ-SAM](https://github.com/SysCV/sam-hq) (ViT-H, ViT-L, ViT-B), [MedSAM](https://github.com/bowang-lab/MedSAM/tree/main), and [MobileSAM](https://github.com/ChaoningZhang/MobileSAM).
+HQ-SAM emphasizes fine-grained high-quality masks, MedSAM is optimized for medical images using ViT-B, while MobileSAM offers a lightweight CPU-compatible variant.
 
 https://github.com/mazenidrees/RWTH-SAM/assets/130779425/450418bf-ed17-41c3-b2bb-35ba6b63d360
 
