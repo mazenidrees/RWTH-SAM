@@ -8,30 +8,6 @@ and the [Division of Medical Image Computing](https://www.dkfz.de/en/mic/index.p
 It was developed within the frame of a bachelor thesis to fit the needs of segmenting x-ray tomography images of lithium ion batteries at the Institute for Power Electronics and Electrical Drives (ISEA) at the RWTH university.
 
 
-
----
-## Table of Contents
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Finding The Plugin](#finding-the-plugin)
-  - [The Main Widget](#the-main-widget)
-    - [Widget Opening and Model Selection](#widget-opening-and-model-selection)
-    - [Input Image and Output Label Layers Selection](#input-image-and-output-label-layers-selection)
-    - [Segmentation Profile Selection](#segmentation-profile-selection)
-    - [Annotation Mode](#annotation-mode)
-  - [The Segmentation Profile Creation Widget](#the-segmentation-profile-creation-widget)
-  - [Activating](#activating)
-  - [Performing Segmentation in Semi-Automatic Mode (Click)](#performing-the-segmentation-in-semi-automatic-mode-click)
-    - [Positive Points](#positive-points)
-    - [Negative Points](#negative-points)
-    - [Bounding Boxes](#bounding-boxes)
-    - [Deleting Prompts](#deleting-prompts)
-    - [Manual Modifications to Masks](#manual-modifications-to-masks)
-  - [Settings for Automatic Mask Generation](#settings-for-automatic-mask-generation)
----
-
-You can insert this Table of Contents at the specified position, after the introduction. The links (`#anchor-text`) are based on the section titles in your README, and they should work if users click on them, navigating them directly to the corresponding sections in the document.
-
 ## Installation
 
 1. Create a virtual environment `conda create -n rwth-sam python=3.10 -y` and activate it `conda activate rwth-sam`
@@ -52,6 +28,29 @@ conda env create -f rwth_sam_conda.yml
 ```
 
 ## Usage
+
+---
+### Table of Contents
+- [Opening Napari](#opening-napari)
+- [Finding The Plugin](#finding-the-plugin)
+- [The Main Widget](#the-main-widget)
+  - [Widget Opening and Model Selection](#widget-opening-and-model-selection)
+  - [Input Image and Output Label Layers Selection](#input-image-and-output-label-layers-selection)
+  - [Segmentation Profile Selection](#segmentation-profile-selection)
+  - [Annotation Mode](#annotation-mode)
+- [The Segmentation Profile Creation Widget](#the-segmentation-profile-creation-widget)
+- [Activating](#activating)
+- [Performing Segmentation in Semi-Automatic Mode (Click)](#performing-the-segmentation-in-semi-automatic-mode-click)
+  - [Positive Points](#positive-points)
+  - [Negative Points](#negative-points)
+  - [Bounding Boxes](#bounding-boxes)
+  - [Deleting Prompts](#deleting-prompts)
+  - [Manual Modifications to Masks](#manual-modifications-to-masks)
+- [Settings for Automatic Mask Generation](#settings-for-automatic-mask-generation)
+---
+
+
+### Opening Napari
 Activate the conda environment:
 ```bash
 conda activate rwth-sam
