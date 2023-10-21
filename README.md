@@ -5,15 +5,8 @@ A plugin for segmenting images using the [Segment Anything model](https://github
 This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template. It is inspired by [the Napari-sam plugin](https://github.com/MIC-DKFZ/napari-sam) developed by the Applied Computer Vision Lab (ACVL) of [Helmholtz Imaging](http://helmholtz-imaging.de) 
 and the [Division of Medical Image Computing](https://www.dkfz.de/en/mic/index.php) at the [German Cancer Research Center (DKFZ)](https://www.dkfz.de/en/index.html).
 
-It is adapted within the frame of a bachelor thesis to fit the needs of segmenting x-ray tomography images of lithium ion batteries at the Institute for Power Electronics and Electrical Drives (ISEA) at the RWTH university.
+It was developed within the frame of a bachelor thesis to fit the needs of segmenting x-ray tomography images of lithium ion batteries at the Institute for Power Electronics and Electrical Drives (ISEA) at the RWTH university.
 
-<!--
-Don't miss the full getting started guide to set up your new package:
-https://github.com/napari/cookiecutter-napari-plugin#getting-started
-
-and review the napari docs for plugin developers:
-https://napari.org/stable/plugins/index.html
--->
 
 ## Installation
 
@@ -87,6 +80,14 @@ https://github.com/mazenidrees/RWTH-SAM/assets/130779425/930f0f15-0562-4816-a12c
 
 Segmentation profiles can be stored as JSON files and accessed later. While JSON files are not native to Napari, the plugin will automatically manage their opening.
 
+### Activating
+Once you've selected all the required settings, the 'Activate' button becomes available.
+Click on this button to initiate the segmentation process. A progress bar will then show up to provide feedback on the ongoing process.
+
+
+https://github.com/mazenidrees/RWTH-SAM/assets/130779425/344edf0d-d608-4ba9-9587-739af6b5a459
+
+
 ### Performing the segmentation in semi-automatic mode (click)
 Using a combination of mouse clicks and modifier keys (control, shift), users can guide SAM with positive points, negative points, and bounding boxes. A temporary green mask will be displayed upon that. This mask can be further refined with more prompts. Once satisfied, the mask must be submitted to one of the classes available in the right menu.
 
@@ -120,7 +121,7 @@ Masks can only be modified after being submitted to a class.
 By picking the color linked to the desired class, you can paint or erase on a mask.
 Currently, clicking "submit to class" is required to save changes. This will be addressed in the subsequent update.
 
-### Settings for Automatic Mask Generation:
+### Settings for Automatic Mask Generation
 
 Referenced from [SAM's official documentation](https://github.com/facebookresearch/segment-anything/blob/main/segment_anything/automatic_mask_generator.py):
 
