@@ -1,0 +1,19 @@
+name: rwth-sam
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - napari[all]
+      - torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+      - git+https://github.com/facebookresearch/segment-anything.git
+      - git+https://github.com/ChaoningZhang/MobileSAM.git
+      - git+https://github.com/bowang-lab/MedSAM
+      - segment-anything-hq
+      - git+https://github.com/mazenidrees/RWTH-SAM.git
+      - timm
+
+
+prefix: C:\Users\B_rain\anaconda3\envs\rwth-sam
