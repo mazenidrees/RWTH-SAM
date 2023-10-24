@@ -28,7 +28,7 @@ conda env create -f rwth_sam_conda.yml
 ```
 
 ## Usage
-
+<!--
 ### Table of Contents
 
 - [Opening Napari](#opening-napari)
@@ -47,7 +47,7 @@ conda env create -f rwth_sam_conda.yml
   - [Deleting Prompts](#deleting-prompts)
   - [Manual Modifications to Masks](#manual-modifications-to-masks)
 - [Settings for Automatic Mask Generation](#settings-for-automatic-mask-generation)
-
+-->
 
 
 ### Opening Napari
