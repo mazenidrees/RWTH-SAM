@@ -17,7 +17,7 @@ It was developed within the frame of a bachelor thesis to fit the needs of segme
 pip install napari[all]
 pip install git+https://github.com/facebookresearch/segment-anything.git
 pip install segment-anything-hq
-pip install git+https://github.om/ChaoningZhang/MobileSAM.git
+pip install git+https://github.com/ChaoningZhang/MobileSAM.git
 pip install git+https://github.com/mazenidrees/RWTH-SAM.git
 pip install timm
 ```
