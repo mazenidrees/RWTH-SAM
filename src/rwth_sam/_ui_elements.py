@@ -67,41 +67,6 @@ SAM_MODELS = {
     "MobileSAM" : {"filename": "mobile_sam.pt", "url": "https://github.com/ChaoningZhang/MobileSAM/blob/master/weights/mobile_sam.pt?raw=true", "model": build_sam_vit_t, "predctor": SamPredictorMobile, "automatic_mask_generator": SamAutomaticMaskGeneratorMobile}
 }
 
-class ClassSelector(QListWidget):
-    def __init__(self, viewer):
-        super().__init__()
-        self.viewer = viewer
-        self.update_classes()
-        # connect a method to the itemSelectionChanged signal
-        self.itemSelectionChanged.connect(self.item_selected)
-
-    def update_classes(self, classes=None):
-        self.clear()
-        if classes:
-            for class_name in classes:
-                self.addItem(class_name)
-
-        # Adjust the height of the QListWidget based on the content
-        self.adjust_height()
-
-    def item_selected(self):
-        # get the text of the currently selected item
-        selected_index = self.currentRow()
-        print(f'Selected index: {selected_index}')
-
-    def adjust_height(self):
-        # The minimum height of QListWidget
-        min_height = 100  # Set this to your desired minimum height
-
-        # Calculate the total height of all items
-        total_height = sum([self.sizeHintForRow(i) for i in range(self.count())])
-
-        # Add the spacing (margin) around items in the list
-        total_height += self.count() * self.spacing()
-
-        # Ensure the QListWidget height is not less than the minimum height
-        self.setMaximumHeight(max(total_height, min_height))
-
 
 class ColorDelegate(QStyledItemDelegate):
 
@@ -138,12 +103,6 @@ class ColorDelegate(QStyledItemDelegate):
         option.rect.adjust(color_rect_width + 2*spacing, 0, 0, 0)
 
         QStyledItemDelegate.paint(self, painter, option, index)
-
-
-
-
-
-
 
 
 def numpy_color_to_qcolor(np_color):
@@ -193,7 +152,6 @@ class ClassSelector(QListWidget):
     def item_selected(self):
         # get the text of the currently selected item
         selected_index = self.currentRow()
-        print(f'Selected index: {selected_index}')
 
     def adjust_height(self):
         # The minimum height of QListWidget
