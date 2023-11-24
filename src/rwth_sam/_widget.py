@@ -895,15 +895,14 @@ class SegmentationProfileQWidget(QWidget):
     def __init__(self, napari_viewer):
         super().__init__()
         self.viewer = napari_viewer
-        self.class_names = []
+        self.class_name_edits = []
 
         layout = QVBoxLayout()
 
-        
-        layout.addWidget(QLabel("segmanation profile:"))
+        layout.addWidget(QLabel("Segmentation profile:"))
         # Layer name input
         self.layer_name_edit = QLineEdit()
-        self.layer_name_edit.setPlaceholderText("Segmanation Profile Name")
+        self.layer_name_edit.setPlaceholderText("Segmentation Profile Name")
         layout.addWidget(self.layer_name_edit)
 
         # Class count input
@@ -939,22 +938,42 @@ class SegmentationProfileQWidget(QWidget):
             self.class_inputs_layout.addWidget(edit)
             self.class_name_edits.append(edit)
 
+    def _update_class_fields(self):
+        count = self.class_count_spinbox.value()
+
+        # Remove extra class name edits if count decreases
+        while len(self.class_name_edits) > count:
+            edit = self.class_name_edits.pop()
+            edit.deleteLater()
+        
+        # Update existing class name edits
+        for i, edit in enumerate(self.class_name_edits):
+            edit.setPlaceholderText(f"Class {i + 1} Name")
+
+        # Add new class name edits if needed
+        for i in range(len(self.class_name_edits), count):
+            edit = QLineEdit(self)
+            edit.setPlaceholderText(f"Class {i + 1} Name")
+            self.class_inputs_layout.addWidget(edit)
+            self.class_name_edits.append(edit)
+
+
     def _save_profile(self):
         layer_name = self.layer_name_edit.text()
-        self.class_names = [edit.text().strip() for edit in self.class_name_edits]
+        class_names = [edit.text().strip() for edit in self.class_name_edits]
 
         # Check if any field is empty
-        if not layer_name or any(not class_name for class_name in self.class_names):
+        if not layer_name or any(not class_name for class_name in class_names):
             QMessageBox.warning(self, "Input Error", "Please fill all the fields before saving.")
             return
 
         # Check if class names are unique
-        if len(self.class_names) != len(set(self.class_names)):
+        if len(class_names) != len(set(class_names)):
             QMessageBox.warning(self, "Input Error", "Class names must be unique. Please correct before saving.")
             return
 
         profile = {
-            "classes": self.class_names
+            "classes": class_names
         }
 
         # Add a new shapes layer in Napari
