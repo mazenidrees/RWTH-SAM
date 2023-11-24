@@ -9,7 +9,6 @@ import urllib.request
 
 import numpy as np
 import torch
-from pympler import asizeof # FIXME: remove for release
 import napari
 from qtpy.QtWidgets import (
     QWidget,
@@ -73,7 +72,6 @@ SAM_MODELS = {
 }
 # BUG: (possible) when switching images from 3D to 2D an error is thrown 
 # BUG: when deactivating and choosing another model without loading it the activate button is still enabled
-# BuG: when ereasing or painting on the label layer the modifications are not lost with new prompts. Possible solution: Submit to class before new prompt to save the changes
 
 class SAMWidget(QWidget):
     def __init__(self, napari_viewer):
@@ -211,7 +209,7 @@ class SAMWidget(QWidget):
             self.ui_elements.cs_class_selector.set_colors(self.label_color_mapping["label_mapping"])
             self.ui_elements.update_progress_bar(8)
 
-            self.submit_to_class(self.temp_class_id)  # init
+            self._submit_to_class(self.temp_class_id)  # init
             self.ui_elements.update_progress_bar(9)
 
             # Step 10
@@ -238,16 +236,8 @@ class SAMWidget(QWidget):
             self.image_shape = self.image_layer.data.shape
         elif self.image_layer.ndim == 3:
             self.image_shape = self.image_layer.data.shape[1:]
-            print(f"Image shape: {self.image_shape}")
 
 
-        #FIXME: remove for release
-        size_image_layer = asizeof.asizeof(self.image_layer)
-        size_label_layer = asizeof.asizeof(self.label_layer)
-        print(f"Memory usage of image_layer: {size_image_layer} bytes") 
-        print(f"Memory usage of label_layer: {size_label_layer} bytes")
-        # TODO: History
-        # self.label_layer_changes = None
 
     def set_point_size(self):
         if self.image_layer.ndim == 2:
@@ -257,7 +247,6 @@ class SAMWidget(QWidget):
             self.point_size = max(int(np.min(self.image_layer.data.shape[-2:]) / 100), 1) # 3D Shape is (Layers, Height, Width)
             self.bbox_edge_width = max(int(np.min(self.image_layer.data.shape[-2:]) / 800), 1)
 
-        # self.bbox_edge_width = int(self.le_bbox_edge_width.text()) #TODO: maybe add again
  
     def check_image_dimension(self):
         if self.image_layer.ndim not in [2, 3]:
@@ -406,14 +395,6 @@ class SAMWidget(QWidget):
     def activate_annotation_mode_click(self):
 
 
-            # TODO: History
-            """ 
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=FutureWarning)
-                self._history_limit = self.label_layer._history_limit
-            self._reset_history()
-             """
-
             self.image_layer.events.contrast_limits.connect(self.debounced_on_contrast_limits_change)
             self.viewer.mouse_drag_callbacks.append(self.decide_callback_for_clicks)
 
@@ -422,12 +403,7 @@ class SAMWidget(QWidget):
             self.viewer.keymap['Control-K'] = self.delete_selected_point
             self.viewer.keymap['Control-Shift-K'] = self.on_delete_all
 
-            # TODO: History: keymap
-            """ 
-            
-            self.label_layer.keymap['Control-Z'] = self.on_undo
-            self.label_layer.keymap['Control-Shift-Z'] = self.on_redo
-             """
+
     
 
     #### preparing after activation
@@ -504,12 +480,14 @@ class SAMWidget(QWidget):
     #### callbacks
     def decide_callback_for_clicks(self, layer, event):
         coords = self._get_coords(event)
-
+  
         if (not CONTROL in event.modifiers) and (not SHIFT in event.modifiers) and event.button == 3:  # Positive middle click
+            self.catch_new_prompt()
             self.add_point(coords, 1)
             yield
 
         elif (CONTROL in event.modifiers) and event.button == 3:  # Negative middle click
+            self.catch_new_prompt()
             self.add_point(coords, 0)
             yield
 
@@ -522,6 +500,7 @@ class SAMWidget(QWidget):
             yield
 
         elif (SHIFT in event.modifiers) and event.button == 3:  # Positive middle click
+            self.catch_new_prompt()
             yield from self.handle_bbox_click(event, coords)
 
     def handle_bbox_click(self, event, initial_coords):
@@ -534,6 +513,12 @@ class SAMWidget(QWidget):
             else:  # event.type == 'mouse_release':
                 self.add_bbox(coords, BboxState.RELEASE)
             yield
+
+    def catch_new_prompt(self):
+        label_layer = np.asarray(self.label_layer.data)
+        if not np.any(label_layer == self.temp_class_id):
+            self._submit_to_class(0)
+
 
     def select_label(self, coords):
             picked_label = self.label_layer.data[slicer(self.label_layer.data, coords)]
@@ -588,13 +573,19 @@ class SAMWidget(QWidget):
         self._update_points_layer()
 
     def submit_to_class(self, class_id):
+        if class_id == 0:
+            warnings.warn("Please choose a class.")
+            return
+        self._submit_to_class(class_id)
+
+
+    def _submit_to_class(self, class_id):
         self.points = []
         self.points_labels = []
         self.bboxes = {}
         self.bbox = None
         self._update_bbox_layer(BboxState.DELETE)
         self._update_points_layer()
-        print(class_id)
 
         label_layer = np.asarray(self.label_layer.data)
         label_layer[label_layer == self.temp_class_id] = class_id
@@ -620,7 +611,6 @@ class SAMWidget(QWidget):
         self._update_points_layer()
 
     def on_delete_all(self, layer=None):
-    
         if self.points_layer is None:
             warnings.warn("No points layer")
             return
@@ -654,13 +644,6 @@ class SAMWidget(QWidget):
         points, labels, bbox, x_coord = self._get_formatted_sam_prompt(points=self.points, labels=self.points_labels, bbox=self.bbox, coords=coords)
         prediction = self._predict_with_sam(points=points, labels=labels, bbox=bbox, x_coord=x_coord)
         self._update_label_layer(prediction, self.temp_class_id, x_coord)
-        print("predict_and_update_label_layer")
-        print(f"points: {points}")
-        print(f"labels: {labels}")
-        print(f"self.bbox: {self.bbox}")
-        print(f"bbox: {bbox}")
-        print(f"x_coord: {x_coord}")
-        print(f"prediction: {prediction.shape}")
 
     def _get_formatted_sam_prompt(self, points, labels, bbox, coords):
 

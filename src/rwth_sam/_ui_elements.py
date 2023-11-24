@@ -180,7 +180,6 @@ class ClassSelector(QListWidget):
             item = self.item(idx)
             if idx in self.label_colors_dict:
                 rect_color = numpy_color_to_qcolor(self.label_colors_dict[idx+1]) # +1 because the first class is transparent background
-                print(f"Setting color for index {idx}:", rect_color.name())  # Debug print
                 if not rect_color.isValid():
                     continue
                     
