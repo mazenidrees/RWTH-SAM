@@ -271,6 +271,7 @@ class UiElements:
             "Select Point: Left Click \n \n"
             "Delete Selected Point: Control + K \n \n"
             "Delete All Prompts: Control + Shift + K \n \n"
+            "manually editing the masks (painting, ereasing) can only be done while no new masks are being generated with prompts"
         )
         self.l_annotation.addWidget(self.rb_annotation_mode_click)
 

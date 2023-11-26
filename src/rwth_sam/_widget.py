@@ -181,16 +181,13 @@ class SAMWidget(QWidget):
         total_steps = 10  # Assume there are 10 major steps in the activation process
         self.ui_elements.create_progress_bar(total_steps, "Activating:")
         try:
-            # Step 1
             self.points_layer = None
             self.bbox_layer = None
             self.ui_elements.update_progress_bar(1)
 
-            # Step 2
             self.set_layers()
             self.ui_elements.update_progress_bar(2)
 
-            # And so on for each major step...
             self.set_point_size()
             self.ui_elements.update_progress_bar(3)
 
@@ -212,7 +209,6 @@ class SAMWidget(QWidget):
             self._submit_to_class(self.temp_class_id)  # init
             self.ui_elements.update_progress_bar(9)
 
-            # Step 10
             if annotator_mode == AnnotatorMode.AUTO:
                 self.activate_annotation_mode_auto()
             elif annotator_mode == AnnotatorMode.CLICK:
@@ -230,8 +226,13 @@ class SAMWidget(QWidget):
     #### preparing
     def set_layers(self):
         self.image_name = self.ui_elements.cb_input_image_selctor.currentText()
-        self.image_layer = self.viewer.layers[self.ui_elements.cb_input_image_selctor.currentText()]
-        self.label_layer = self.viewer.layers[self.ui_elements.cb_output_label_selctor.currentText()]
+        self.label_name = self.ui_elements.cb_output_label_selctor.currentText()
+
+        self.image_layer = self.viewer.layers[self.image_name]
+        self.label_layer = self.viewer.layers[self.label_name]
+
+        self.label_layer.name = f"{self.image_name}_label"
+
         if self.image_layer.ndim == 2:
             self.image_shape = self.image_layer.data.shape
         elif self.image_layer.ndim == 3:
@@ -731,29 +732,6 @@ class SAMWidget(QWidget):
         return prediction.squeeze(axis=0) # was (1,h,w) because multimask_output=False
 
     def _update_points_layer(self):
-        if self.viewer.layers.selection.active != self.points_layer:
-            selected_layer = self.viewer.layers.selection.active
-
-        color_list = ["red" if i == 0 else "blue" for i in self.points_labels]
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=UserWarning)
-            if self.points_layer is None:
-                self.points_layer = self.viewer.add_points(name="ignore this layer", data=np.asarray(self.points), face_color=color_list, edge_color="white", size=self.point_size)
-                self.points_layer.editable = False
-            else:
-                self.points_layer.data = np.asarray(self.points)
-                self.points_layer.face_color = color_list
-                self.points_layer.edge_color = "white"
-                self.points_layer.size = self.point_size
-        self.points_layer.refresh()
-
-        # Reselect selected layer
-        if selected_layer is not None:
-            self.viewer.layers.selection.active = selected_layer
-        self.points_layer.selected_data = set()
-
-    def _update_points_layer(self):
         selected_layer = None
         color_list = ["red" if i==0 else "blue" for i in self.points_labels]
         #save selected layer
@@ -765,7 +743,7 @@ class SAMWidget(QWidget):
             self.viewer.layers.remove(self.points_layer)
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning)
-            self.points_layer = self.viewer.add_points(name="ignore this layer", data=np.asarray(self.points), face_color=color_list, edge_color="white", size=self.point_size)
+            self.points_layer = self.viewer.add_points(name="Points - DO NOT CHANGE", data=np.asarray(self.points), face_color=color_list, edge_color="white", size=self.point_size)
         self.points_layer.editable = False
         self.points_layer.refresh()
 
@@ -842,7 +820,7 @@ class SAMWidget(QWidget):
 
         if self.bbox_layer is None:
             # Create the layer if it doesn't exist
-            self.bbox_layer = self.viewer.add_shapes(name="ignore this layer", 
+            self.bbox_layer = self.viewer.add_shapes(name="Bounding Boxes - DO NOT CHANGE", 
                                                     data=bboxes, 
                                                     edge_width=edge_width, 
                                                     edge_color=edge_colors, 
@@ -956,7 +934,6 @@ class SegmentationProfileQWidget(QWidget):
             edit.setPlaceholderText(f"Class {i + 1} Name")
             self.class_inputs_layout.addWidget(edit)
             self.class_name_edits.append(edit)
-
 
     def _save_profile(self):
         layer_name = self.layer_name_edit.text()
