@@ -234,19 +234,16 @@ class SAMWidget(QWidget):
         self.label_layer.name = f"{self.image_name}_label"
 
         if self.image_layer.ndim == 2:
-            self.image_shape = self.image_layer.data.shape
+            self.image_shape = self.label_layer.data.shape # using label_layer because image_layer might be a 2D image with 3 channels
         elif self.image_layer.ndim == 3:
-            self.image_shape = self.image_layer.data.shape[1:]
+            self.image_shape = self.label_layer.data.shape[1:]
 
 
 
     def set_point_size(self):
-        if self.image_layer.ndim == 2:
-            self.point_size = max(int(np.min(self.image_layer.data.shape[:2]) / 100), 1) # 2D Shape is (Height, Width, Channels)
-            self.bbox_edge_width = max(int(np.min(self.image_layer.data.shape[:2]) / 800), 1)
-        else:
-            self.point_size = max(int(np.min(self.image_layer.data.shape[-2:]) / 100), 1) # 3D Shape is (Layers, Height, Width)
-            self.bbox_edge_width = max(int(np.min(self.image_layer.data.shape[-2:]) / 800), 1)
+        self.point_size = max(int(np.min(self.image_shape) / 100), 1) # 2D Shape is (Height, Width, Channels)
+        self.bbox_edge_width = max(int(np.min(self.image_shape) / 800), 1)
+
 
  
     def check_image_dimension(self):
