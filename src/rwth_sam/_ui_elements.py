@@ -219,6 +219,7 @@ class UiElements:
         self._init_activation_button()
         self._init_class_selection()
         self._init_submit_to_class_button()
+        self._init_show_hide_tips_button()
         self._init_tooltip()
         self.init_auto_mode_settings()
 
@@ -262,24 +263,27 @@ class UiElements:
         self.g_annotation = QGroupBox("Annotation mode")
         self.l_annotation = QVBoxLayout()
 
+        # Add a label for instructions
+        self.label_info_tooltip = QLabel("Hover over modes to see details")
+        self.label_info_tooltip.setStyleSheet("font-style: italic; color: #555555;")
+        self.label_info_tooltip.setWordWrap(True)
+        self.l_annotation.addWidget(self.label_info_tooltip)
+
         self.rb_annotation_mode_click = QRadioButton("Click")
         self.rb_annotation_mode_click.setChecked(True)
         self.rb_annotation_mode_click.setToolTip(
-            "Positive Click: Middle Mouse Button\n \n"
-            "Negative Click: Control + Middle Mouse Button \n \n"
-            "Bounding Box: Shift + Middle Mouse Button + Drag \n \n"
-            "Select Point: Left Click \n \n"
-            "Delete Selected Point: Control + K \n \n"
-            "Delete All Prompts: Control + Shift + K \n \n"
-            "manually editing the masks (painting, ereasing) can only be done while no new masks are being generated with prompts"
+            "Generates masks based on user-provided prompts.\n\n"
+            "Prompts can be:\n"
+            "- Positive point: generate a mask that includes the point\n"
+            "- Negative point: excludes the area of the mask at the given point\n"
+            "- Bounding Box: generates a mask of the object surrounded by the bounding box."
         )
         self.l_annotation.addWidget(self.rb_annotation_mode_click)
 
         self.rb_annotation_mode_automatic = QRadioButton("Automatic mask generation")
         self.rb_annotation_mode_automatic.setToolTip(
-            "Creates automatically an instance segmentation \n"
-            "of the entire image.\n"
-            "No user interaction possible."
+            "Creates an instance segmentation automatically for the entire image.\n"
+            "No user interaction is possible."
         )
         self.l_annotation.addWidget(self.rb_annotation_mode_automatic)
 
@@ -306,30 +310,32 @@ class UiElements:
         self.btn_submit_to_class.setEnabled(False)
         self.main_layout.addWidget(self.btn_submit_to_class)
 
+    def _init_show_hide_tips_button(self):
+        self.toggle_tips_button = QPushButton("Show/Hide Tips")
+        self.toggle_tips_button.clicked.connect(self.toggle_tips_visibility)
+        self.main_layout.addWidget(self.toggle_tips_button)
+
     def _init_tooltip(self):
         container_widget_info = QWidget()
         container_layout_info = QVBoxLayout(container_widget_info)
 
+        # Tips Group
+        self.g_tips = QGroupBox("Tips")
+        self.l_tips = QVBoxLayout()
+        self.label_tips = QLabel(
+            "Choosing the right image contrast can have a positive impact on the generated masks.\n"
+            "Adjust the image contrast using the contrast slider in the image layer.\n\n"
+            "Editing masks (painting, erasing) is only possible when no new masks are being generated."
+        )
+        self.label_tips.setWordWrap(True)
+        self.l_tips.addWidget(self.label_tips)
+        self.g_tips.setLayout(self.l_tips)
+        container_layout_info.addWidget(self.g_tips)
 
-        self.g_info_tooltip = QGroupBox("Tooltip Information")
-        self.l_info_tooltip = QVBoxLayout()
-        self.label_info_tooltip = QLabel("Every mode shows further information when hovered over.")
-        self.label_info_tooltip.setWordWrap(True)
-        self.l_info_tooltip.addWidget(self.label_info_tooltip)
-        self.g_info_tooltip.setLayout(self.l_info_tooltip)
-        container_layout_info.addWidget(self.g_info_tooltip)
+        self.g_tips.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.g_tips.setVisible(False)
 
-        """ 
-        self.g_info_contrast = QGroupBox("Contrast Limits")
-        self.l_info_contrast = QVBoxLayout()
-        self.label_info_contrast = QLabel("SAM computes its image embedding based on the current image contrast.\n"
-                                          "Image contrast can be adjusted with the contrast slider of the image layer.")
-        self.label_info_contrast.setWordWrap(True)
-        self.l_info_contrast.addWidget(self.label_info_contrast)
-        self.g_info_contrast.setLayout(self.l_info_contrast)
-        container_layout_info.addWidget(self.g_info_contrast)
-         """
-        
+        # Click Mode Group
         self.g_info_click = QGroupBox("Click Mode")
         self.l_info_click = QVBoxLayout()
         self.label_info_click = QLabel(
@@ -338,17 +344,25 @@ class UiElements:
             "Bounding Box: Shift + Middle Mouse Button + Drag \n \n"
             "Select Point: Left Click \n \n"
             "Delete Selected Point: Control + K \n \n"
-            "Delete All Prompts: Control + Shift + K \n \n"
+            "Delete All Prompts: Control + Shift + K"
         )
         self.label_info_click.setWordWrap(True)
         self.l_info_click.addWidget(self.label_info_click)
         self.g_info_click.setLayout(self.l_info_click)
         container_layout_info.addWidget(self.g_info_click)
 
+        self.g_info_click.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.g_info_click.setVisible(False)
+
         self.scroll_area_click = QScrollArea()
         self.scroll_area_click.setWidget(container_widget_info)
         self.scroll_area_click.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area_click.setWidgetResizable(True)
         self.main_layout.addWidget(self.scroll_area_click)
+
+    def toggle_tips_visibility(self):
+        self.g_tips.setVisible(not self.g_tips.isVisible())
+        self.g_info_click.setVisible(not self.g_info_click.isVisible())
 
     def init_auto_mode_settings(self):
         container_widget_auto = QWidget()
@@ -476,6 +490,7 @@ class UiElements:
         # scroll_area_info.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.scroll_area_auto.hide()
 
+        self.scroll_area_auto.setWidgetResizable(True)
         self.main_layout.addWidget(self.scroll_area_auto)
    
     def _init_UI_signals(self):
@@ -625,8 +640,10 @@ class UiElements:
 
     def _update_tooltip(self):
         if self.rb_annotation_mode_click.isChecked():
+            self.toggle_tips_button.show()
             self.scroll_area_click.show()
         else:
+            self.toggle_tips_button.hide()
             self.scroll_area_click.hide()
         if self.rb_annotation_mode_automatic.isChecked():
             self.scroll_area_auto.show()
