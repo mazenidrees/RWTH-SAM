@@ -72,6 +72,7 @@ SAM_MODELS = {
 }
 # BUG: (possible) when switching images from 3D to 2D an error is thrown 
 # BUG: when deactivating and choosing another model without loading it the activate button is still enabled
+# BUG: when removing image, label and/or profile layer, you can no longer deactivate
 
 class SAMWidget(QWidget):
     def __init__(self, napari_viewer):
@@ -188,7 +189,7 @@ class SAMWidget(QWidget):
             self.set_layers()
             self.ui_elements.update_progress_bar(2)
 
-            self.set_point_size()
+            self.set_point_and_bbox_size()
             self.ui_elements.update_progress_bar(3)
 
             self.check_image_dimension()
@@ -240,9 +241,14 @@ class SAMWidget(QWidget):
 
 
 
-    def set_point_size(self):
-        self.point_size = max(int(np.min(self.image_shape) / 100), 1) # 2D Shape is (Height, Width, Channels)
-        self.bbox_edge_width = max(int(np.min(self.image_shape) / 800), 1)
+    def set_point_and_bbox_size(self):
+        """ Sets the size of the points and bounding boxes based on the geometric mean of the image dims. """
+        geometric_mean = np.sqrt(self.image_shape[0]*self.image_shape[1])
+        point_factor = 100 
+        bbox_factor = 800
+
+        self.point_size = max(int(geometric_mean / point_factor), 1)
+        self.bbox_edge_width =max(int(geometric_mean / bbox_factor), 1)
 
 
  
