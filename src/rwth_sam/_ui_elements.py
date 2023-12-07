@@ -9,7 +9,7 @@ import napari
 import qtpy
 from qtpy import QtCore
 from qtpy.QtCore import Qt
-from qtpy.QtGui import QIntValidator, QDoubleValidator, QColor, QBrush
+from qtpy.QtGui import QIntValidator, QDoubleValidator, QColor, QBrush, QPainter
 from qtpy.QtWidgets import (
     QApplication,
     QComboBox,
@@ -24,7 +24,8 @@ from qtpy.QtWidgets import (
     QSizePolicy,
     QVBoxLayout,
     QWidget,
-    QStyledItemDelegate
+    QStyledItemDelegate,
+    QStyleOptionViewItem
 )
 
 
@@ -68,17 +69,28 @@ SAM_MODELS = {
 }
 
 
-class ColorDelegate(QStyledItemDelegate):
 
-    def paint(self, painter, option, index):
+class ColorDelegate(QStyledItemDelegate):
+    def paint(self, painter: QPainter, option, index):
         rect = option.rect
         color_rect_width = 20
         spacing = 5
 
         bg_color = index.data(Qt.UserRole + 1)  # Using a custom role to avoid conflicts
+        is_selected = option.widget.selectionModel().isSelected(index)
+
         if bg_color:
             painter.save()  # Save painter state
             
+            if is_selected:
+                painter.fillRect(
+                    rect.left(), 
+                    rect.top(), 
+                    color_rect_width + 2*spacing, 
+                    rect.height(), 
+                    QColor("#6A7380")
+                )
+
             # Draw colored rectangle
             painter.fillRect(
                 rect.left() + spacing, 
@@ -100,7 +112,7 @@ class ColorDelegate(QStyledItemDelegate):
             painter.restore()  # Restore painter state
 
         # Adjust text position
-        option.rect.adjust(color_rect_width + 2*spacing, 0, 0, 0)
+        option.rect.adjust(color_rect_width + 2 * spacing, 0, 0, 0)
 
         QStyledItemDelegate.paint(self, painter, option, index)
 
@@ -123,8 +135,7 @@ class ClassSelector(QListWidget):
         # connect a method to the itemSelectionChanged signal
         self.itemSelectionChanged.connect(self.item_selected)
 
-        # Styling the selection using QSS to make the text bold on selection
-        self.setStyleSheet("QListWidget::item { background-color: transparent; }")
+        self.setFocusPolicy(Qt.NoFocus)
 
     def update_classes(self, classes=None):
         self.clear()
@@ -134,15 +145,16 @@ class ClassSelector(QListWidget):
         # Adjust the height of the QListWidget based on the content
         self.adjust_height()
 
-    def update_colors(self):
+    def update_colors(self, current_row):
         for idx in range(self.count()):
             item = self.item(idx)
-            if idx in self.label_colors_dict:
-                rect_color = numpy_color_to_qcolor(self.label_colors_dict[idx+1]) # +1 because the first class is transparent background
-                if not rect_color.isValid():
-                    continue
-                    
-                item.setData(Qt.UserRole + 1, QBrush(rect_color))
+            rect_color = numpy_color_to_qcolor(self.label_colors_dict[idx+1])  # +1 because the first class is transparent background
+            item.setData(Qt.UserRole + 1, QBrush(rect_color))
+
+
+
+        # Reselect the previously selected item
+        self.setCurrentRow(current_row)
 
 
 

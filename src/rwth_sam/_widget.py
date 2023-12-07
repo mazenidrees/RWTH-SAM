@@ -737,16 +737,19 @@ class SAMWidget(QWidget):
     def _update_points_layer(self):
         selected_layer = None
         color_list = ["red" if i==0 else "blue" for i in self.points_labels]
+
+        edge_color = ["white"] * len(self.points_labels)
+
         #save selected layer
         if self.viewer.layers.selection.active != self.points_layer:
             selected_layer = self.viewer.layers.selection.active
 
-
+        current_row = self.ui_elements.cs_class_selector.currentRow()
         if self.points_layer is not None:
             self.viewer.layers.remove(self.points_layer)
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning)
-            self.points_layer = self.viewer.add_points(name="Points - DO NOT CHANGE", data=np.asarray(self.points), face_color=color_list, edge_color="white", size=self.point_size)
+            self.points_layer = self.viewer.add_points(name="Points - DO NOT CHANGE", data=np.asarray(self.points), face_color=color_list, edge_color=edge_color, size=self.point_size)
         self.points_layer.editable = False
         self.points_layer.refresh()
 
@@ -754,7 +757,7 @@ class SAMWidget(QWidget):
         if selected_layer is not None:
             self.viewer.layers.selection.active = selected_layer
         self.points_layer.selected_data = set()
-        self.ui_elements.cs_class_selector.update_colors() # for some reason, napari is reseting them!
+        self.ui_elements.cs_class_selector.update_colors(current_row) # for some reason, when layers are removed/added (here the points layer), the colors and the selected class are lost
 
     def _get_dummy_coords_for_delete_all(self):
         #TODO: add coords of bboxes
